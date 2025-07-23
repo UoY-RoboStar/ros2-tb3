@@ -3,9 +3,9 @@
     "build": { "dockerfile":"Dockerfile" },
     "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind",
     "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
-    "mounts": [
-      "source=${localEnv:HOME}${localEnv:USERPROFILE}/.bash_history,target=/home/vscode/.bash_history,type=bind"
-    ],
+    // "mounts": [
+    //   "source=${localEnv:HOME}${localEnv:USERPROFILE}/.bash_history,target=/home/vscode/.bash_history,type=bind"
+    // ],
     // Destkop available via VNC on the browser or via VNC client
     "forwardPorts": [6080,5901],
     "features": {
