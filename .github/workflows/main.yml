@@ -26,7 +26,7 @@ jobs:
           # Change this to point to your image name
           imageName: ghcr.io/pefribeiro/auro
           imageTag: "wsl"
-          configFile: "./.devcontainer/devcontainer.wsl.json"
+          configFile: "./.devcontainer/wsl/devcontainer.json"
           runCmd: echo "success"
 
       - name: Build and run Dev Container task
@@ -35,5 +35,5 @@ jobs:
           # Change this to point to your image name
           imageName: ghcr.io/pefribeiro/auro
           imageTag: "linux-gnu,darwin23.0,darwin24.0"
-          configFile: "./.devcontainer/devcontainer.vnc.json"
+          configFile: "./.devcontainer/vnc/devcontainer.json"
           runCmd: echo "success"
