@@ -33,8 +33,33 @@ RUN sudo apt install -y gazebo
 # Install Turtlebot
 RUN sudo apt install -y ros-humble-dynamixel-sdk ros-humble-turtlebot3-msgs ros-humble-turtlebot3 ros-humble-turtlebot3-gazebo
 
+# Install RMW CycloneDDS
+RUN sudo apt install -y ros-humble-rmw-cyclonedds-cpp
+
 # Rosdep update
 RUN rosdep update
+
+# Ignore warning for colcon builds
+RUN echo 'export PYTHONWARNINGS=ignore:::setuptools.command.install,ignore:::setuptools.command.easy_install,ignore:::pkg_resources' >> ~/.bashrc
+
+# Disable Gazebo classic EOL notices
+RUN echo 'export GAZEBO_SUPPRESS_EOL_WARNING=1' >> ~/.bashrc
+
+# Colcon_cd
+RUN echo "source /usr/share/colcon_cd/function/colcon_cd.sh" >> ~/.bashrc
+RUN echo "export _colcon_cd_root=/opt/ros/humble/" >> ~/.bashrc
+
+# Colcon auto-complete
+RUN echo "source /usr/share/colcon_argcomplete/hook/colcon-argcomplete.bash" >> ~/.bashrc
+
+# Set default RMW implementation
+RUN echo 'export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp' >> ~/.bashrc
+
+# Set default turtlebot3 model
+RUN echo 'export TURTLEBOT3_MODEL=waffle_pi' >> ~/.bashrc
+
+# Gazebo configuration
+RUN echo 'source /usr/share/gazebo/setup.sh' >> ~/.bashrc
 
 # Source the ROS setup file
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
