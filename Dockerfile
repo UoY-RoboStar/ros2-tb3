@@ -15,30 +15,30 @@ RUN apt-get update && \
     echo "$USERNAME ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME && \
     chmod 0440 /etc/sudoers.d/$USERNAME
 
+# Install alsa-utils so we can setup null plugin
+RUN apt install -y alsa-utils
+RUN echo 'pcm.!default { type null }' >> /etc/asound.conf
+
+# Update all packages
+RUN apt update && sudo apt upgrade -y
+
+# Install Git
+RUN apt install -y git
+
+# Install Gazebo
+RUN apt install -y gazebo
+
+# Install Turtlebot
+RUN apt install -y ros-humble-dynamixel-sdk ros-humble-turtlebot3-msgs ros-humble-turtlebot3 ros-humble-turtlebot3-gazebo
+
+# Install RMW CycloneDDS
+RUN apt install -y ros-humble-rmw-cyclonedds-cpp
+
 # Switch from root to user
 USER $USERNAME
 
 # Add user to video group to allow access to webcam
 RUN sudo usermod --append --groups video $USERNAME
-
-# Update all packages
-RUN sudo apt update && sudo apt upgrade -y
-
-# Install alsa-utils so we can setup null plugin
-RUN sudo apt install -y alsa-utils
-RUN sudo echo 'pcm.!default { type null }' >> /etc/asound.conf
-
-# Install Git
-RUN sudo apt install -y git
-
-# Install Gazebo
-RUN sudo apt install -y gazebo
-
-# Install Turtlebot
-RUN sudo apt install -y ros-humble-dynamixel-sdk ros-humble-turtlebot3-msgs ros-humble-turtlebot3 ros-humble-turtlebot3-gazebo
-
-# Install RMW CycloneDDS
-RUN sudo apt install -y ros-humble-rmw-cyclonedds-cpp
 
 # Rosdep update
 RUN rosdep update
