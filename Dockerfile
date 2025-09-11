@@ -24,6 +24,10 @@ RUN sudo usermod --append --groups video $USERNAME
 # Update all packages
 RUN sudo apt update && sudo apt upgrade -y
 
+# Install alsa-utils so we can setup null plugin
+RUN sudo apt install -y alsa-utils
+RUN echo 'pcm.!default { type null }' >> /etc/asound.conf
+
 # Install Git
 RUN sudo apt install -y git
 
