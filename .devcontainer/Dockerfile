@@ -35,13 +35,13 @@ RUN apt install -y ros-humble-dynamixel-sdk ros-humble-turtlebot3-msgs ros-humbl
 RUN apt install -y ros-humble-rmw-cyclonedds-cpp
 
 # Switch from root to user
-RUN mkdir -p /home/$USERNAME/.fluxbox/styles && chown -R $USERNAME:$USERNAME /home/$USERNAME
+# RUN mkdir -p /home/$USERNAME/.fluxbox/styles && chown -R $USERNAME:$USERNAME /home/$USERNAME
 USER $USERNAME
 
 # Fix fluxbox environment
-COPY fluxbox/init /home/$USERNAME/.fluxbox/init
-COPY fluxbox/menu /home/$USERNAME/.fluxbox/menu
-COPY fluxbox/qnx-photon-mod /home/$USERNAME/.fluxbox/styles/qnx-photon-mod
+# COPY fluxbox/init /home/$USERNAME/.fluxbox/init
+# COPY fluxbox/menu /home/$USERNAME/.fluxbox/menu
+# COPY fluxbox/qnx-photon-mod /home/$USERNAME/.fluxbox/styles/qnx-photon-mod
 
 # Add user to video group to allow access to webcam
 RUN sudo usermod --append --groups video $USERNAME
