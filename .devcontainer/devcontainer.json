@@ -1,9 +1,6 @@
 {
     "name": "auro",
-    "build": { 
-        "dockerfile":"Dockerfile",
-        "context": ".."
-    },
+    "build": { "dockerfile":"Dockerfile", },
     "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind",
     "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
     // Destkop available via VNC on the browser or via VNC client
