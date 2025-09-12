@@ -39,9 +39,9 @@ USER $USERNAME
 
 # Fix fluxbox environment
 RUN mkdir -p /home/$USERNAME/.fluxbox/styles
-# COPY fluxbox/init /home/$USERNAME/.fluxbox/init
-# COPY fluxbox/menu /home/$USERNAME/.fluxbox/menu
-# COPY fluxbox/qnx-photon-mod /home/$USERNAME/.fluxbox/styles/qnx-photon-mod
+COPY fluxbox/init /home/$USERNAME/.fluxbox/init
+COPY fluxbox/menu /home/$USERNAME/.fluxbox/menu
+COPY fluxbox/qnx-photon-mod /home/$USERNAME/.fluxbox/styles/qnx-photon-mod
 
 # Add user to video group to allow access to webcam
 RUN sudo usermod --append --groups video $USERNAME
