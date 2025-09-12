@@ -49,6 +49,9 @@ RUN echo 'export PYTHONWARNINGS=ignore:::setuptools.command.install,ignore:::set
 # Disable Gazebo classic EOL notices
 RUN echo 'export GAZEBO_SUPPRESS_EOL_WARNING=1' >> ~/.bashrc
 
+# Disable Gazebo logging by default
+RUN echo 'export GAZEBO_LOG_ENABLE=0' >> ~/.bashrc
+
 # Colcon_cd
 RUN echo "source /usr/share/colcon_cd/function/colcon_cd.sh" >> ~/.bashrc
 RUN echo "export _colcon_cd_root=/opt/ros/humble/" >> ~/.bashrc
