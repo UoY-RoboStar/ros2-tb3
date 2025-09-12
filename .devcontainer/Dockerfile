@@ -35,10 +35,10 @@ RUN apt install -y ros-humble-dynamixel-sdk ros-humble-turtlebot3-msgs ros-humbl
 RUN apt install -y ros-humble-rmw-cyclonedds-cpp
 
 # Switch from root to user
-# RUN mkdir -p /home/$USERNAME/.fluxbox/styles && chown -R $USERNAME:$USERNAME /home/$USERNAME
 USER $USERNAME
 
 # Fix fluxbox environment
+RUN mkdir -p /home/$USERNAME/.fluxbox/styles
 # COPY fluxbox/init /home/$USERNAME/.fluxbox/init
 # COPY fluxbox/menu /home/$USERNAME/.fluxbox/menu
 # COPY fluxbox/qnx-photon-mod /home/$USERNAME/.fluxbox/styles/qnx-photon-mod
