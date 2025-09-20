@@ -20,7 +20,7 @@ RUN apt install -y alsa-utils
 RUN echo 'pcm.!default { type null }' >> /etc/asound.conf
 
 # Update all packages
-RUN apt update && sudo apt upgrade -y
+RUN apt update && apt upgrade -y
 
 # Install Git
 RUN apt install -y git
@@ -29,7 +29,7 @@ RUN apt install -y git
 RUN apt install -y gazebo
 
 # Install Turtlebot
-RUN apt install -y ros-humble-dynamixel-sdk ros-humble-turtlebot3-msgs ros-humble-turtlebot3 ros-humble-turtlebot3-gazebo ros-humble-turtlebot3-navigation2 ros-humble-turtlebot3-simulations ros-humble-turtlebot3-teleop
+RUN apt update && apt install -y ros-humble-dynamixel-sdk ros-humble-turtlebot3-msgs ros-humble-turtlebot3 ros-humble-turtlebot3-gazebo ros-humble-turtlebot3-navigation2 ros-humble-turtlebot3-simulations ros-humble-turtlebot3-teleop
 
 # Install RMW CycloneDDS
 # RUN apt install -y ros-humble-rmw-cyclonedds-cpp
