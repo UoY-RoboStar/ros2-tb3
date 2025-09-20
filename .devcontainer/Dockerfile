@@ -29,10 +29,13 @@ RUN apt install -y git
 RUN apt install -y gazebo
 
 # Install Turtlebot
-RUN apt install -y ros-humble-dynamixel-sdk ros-humble-turtlebot3-msgs ros-humble-turtlebot3 ros-humble-turtlebot3-gazebo
+RUN apt install -y ros-humble-dynamixel-sdk ros-humble-turtlebot3-msgs ros-humble-turtlebot3 ros-humble-turtlebot3-gazebo ros-humble-turtlebot3-navigation2 ros-humble-turtlebot3-simulations ros-humble-turtlebot3-teleop
 
 # Install RMW CycloneDDS
-RUN apt install -y ros-humble-rmw-cyclonedds-cpp
+# RUN apt install -y ros-humble-rmw-cyclonedds-cpp
+
+# Install useful Python3 packages
+RUN apt install -y python3-pip python3-rosdep python3-argcomplete python3-transforms3d
 
 # Switch from root to user
 USER $USERNAME
@@ -66,7 +69,7 @@ RUN echo "export _colcon_cd_root=/opt/ros/humble/" >> ~/.bashrc
 RUN echo "source /usr/share/colcon_argcomplete/hook/colcon-argcomplete.bash" >> ~/.bashrc
 
 # Set default RMW implementation
-RUN echo 'export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp' >> ~/.bashrc
+# RUN echo 'export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp' >> ~/.bashrc
 
 # Set default turtlebot3 model
 RUN echo 'export TURTLEBOT3_MODEL=waffle_pi' >> ~/.bashrc
