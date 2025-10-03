@@ -87,4 +87,4 @@ RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 RUN pip install gdown
 
 # Update PATH
-RUN echo "export PATH=$PATH:/home/ubuntu/.local/bin" >> ~/.bashrc
+RUN echo "export PATH=\$PATH:/home/ubuntu/.local/bin" >> ~/.bashrc
