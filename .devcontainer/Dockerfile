@@ -22,14 +22,17 @@ RUN echo 'pcm.!default { type null }' >> /etc/asound.conf
 # Update all packages
 RUN apt update && apt upgrade -y
 
-# Install Git
-RUN apt install -y git
+# Install Git and other utilities
+RUN apt install -y git psmisc wget
 
 # Install Gazebo
 RUN apt install -y gazebo
 
 # Install Turtlebot
 RUN apt update && apt install -y ros-humble-dynamixel-sdk ros-humble-turtlebot3-msgs ros-humble-turtlebot3 ros-humble-turtlebot3-gazebo ros-humble-turtlebot3-navigation2 ros-humble-turtlebot3-simulations ros-humble-turtlebot3-teleop
+
+# Install rtabmap-ros
+RUN apt update && apt install -y ros-humble-rtabmap-ros
 
 # Install RMW CycloneDDS
 # RUN apt install -y ros-humble-rmw-cyclonedds-cpp
@@ -80,3 +83,8 @@ RUN echo 'source /usr/share/gazebo/setup.sh' >> ~/.bashrc
 # Source the ROS setup file
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 
+# Install useful Python3 packages from pip as user
+RUN pip install gdown
+
+# Update PATH
+RUN echo "export PATH=$PATH:/home/ubuntu/.local/bin" >> ~/.bashrc
