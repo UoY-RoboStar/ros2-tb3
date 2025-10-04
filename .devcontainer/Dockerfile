@@ -23,7 +23,7 @@ RUN echo 'pcm.!default { type null }' >> /etc/asound.conf
 RUN apt update && apt upgrade -y
 
 # Install Git and other utilities
-RUN apt install -y git psmisc wget
+RUN apt install -y git psmisc wget acl
 
 # Install Gazebo
 RUN apt install -y gazebo
