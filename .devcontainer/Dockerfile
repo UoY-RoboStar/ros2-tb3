@@ -34,6 +34,9 @@ RUN apt update && apt install -y ros-humble-dynamixel-sdk ros-humble-turtlebot3-
 # Install rtabmap-ros
 RUN apt update && apt install -y ros-humble-rtabmap-ros
 
+# Install movit2
+RUN apt update && apt install -y ros-humble-moveit ros-humble-moveit-resources-panda-moveit-config
+
 # Install RMW CycloneDDS
 # RUN apt install -y ros-humble-rmw-cyclonedds-cpp
 
@@ -82,6 +85,16 @@ RUN echo 'source /usr/share/gazebo/setup.sh' >> ~/.bashrc
 
 # Source the ROS setup file
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
+
+# Setup movit2_tutorials
+RUN mkdir -p /home/$USERNAME/ws_moveit/src && \
+    cd /home/$USERNAME/ws_moveit/src && \
+    git clone -b ${ROS_DISTRO} https://github.com/moveit/moveit_task_constructor.git && \
+    git clone -b ${ROS_DISTRO} https://github.com/moveit/moveit2_tutorials && \
+    cd ../ && \
+    rosdep install -r --from-paths . --ignore-src --rosdistro ${ROS_DISTRO} -y && \
+    colcon build && \
+    echo "source /home/${USERNAME}/ws_moveit/install/setup.bash" >> /home
 
 # Install useful Python3 packages from pip as user
 RUN pip install gdown
