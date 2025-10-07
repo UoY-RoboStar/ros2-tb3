@@ -102,5 +102,6 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     cd ../ && \
     rosdep install -r --from-paths . --ignore-src --rosdistro ${ROS_DISTRO} -y && \
     colcon build && \
+    rm -rf build/ log/ src/ && \
     echo "source /home/${USERNAME}/ws_moveit/install/setup.bash" >> ~/.bashrc
 
