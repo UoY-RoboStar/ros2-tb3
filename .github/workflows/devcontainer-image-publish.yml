@@ -28,3 +28,4 @@ jobs:
           # Change this to point to your image name
           imageName: ghcr.io/uoy-robostar/ros2-tb3/auro-dev
           runCmd: echo "success"
+          refFilterForPush: refs/heads/main
