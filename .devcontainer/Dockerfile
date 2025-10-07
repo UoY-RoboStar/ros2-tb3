@@ -87,7 +87,8 @@ RUN echo 'source /usr/share/gazebo/setup.sh' >> ~/.bashrc
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 
 # Setup movit2_tutorials
-RUN mkdir -p /home/$USERNAME/ws_moveit/src && \
+RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
+    mkdir -p /home/$USERNAME/ws_moveit/src && \
     cd /home/$USERNAME/ws_moveit/src && \
     git clone -b ${ROS_DISTRO} https://github.com/moveit/moveit_task_constructor.git && \
     git clone -b ${ROS_DISTRO} https://github.com/moveit/moveit2_tutorials && \
