@@ -86,7 +86,14 @@ RUN echo 'source /usr/share/gazebo/setup.sh' >> ~/.bashrc
 # Source the ROS setup file
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 
+# Install useful Python3 packages from pip as user
+RUN pip install gdown
+
+# Update PATH
+RUN echo "export PATH=\$PATH:/home/ubuntu/.local/bin" >> ~/.bashrc
+
 # Setup movit2_tutorials
+SHELL ["/bin/bash", "-c"]
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     mkdir -p /home/$USERNAME/ws_moveit/src && \
     cd /home/$USERNAME/ws_moveit/src && \
@@ -97,8 +104,3 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     colcon build && \
     echo "source /home/${USERNAME}/ws_moveit/install/setup.bash" >> ~/.bashrc
 
-# Install useful Python3 packages from pip as user
-RUN pip install gdown
-
-# Update PATH
-RUN echo "export PATH=\$PATH:/home/ubuntu/.local/bin" >> ~/.bashrc
