@@ -95,7 +95,7 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     cd ../ && \
     rosdep install -r --from-paths . --ignore-src --rosdistro ${ROS_DISTRO} -y && \
     colcon build && \
-    echo "source /home/${USERNAME}/ws_moveit/install/setup.bash" >> /home
+    echo "source /home/${USERNAME}/ws_moveit/install/setup.bash" >> ~/.bashrc
 
 # Install useful Python3 packages from pip as user
 RUN pip install gdown
