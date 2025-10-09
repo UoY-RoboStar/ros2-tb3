@@ -94,14 +94,25 @@ RUN echo "export PATH=\$PATH:/home/ubuntu/.local/bin" >> ~/.bashrc
 
 # Setup movit2_tutorials
 SHELL ["/bin/bash", "-c"]
+# RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
+#     mkdir -p /home/$USERNAME/ws_moveit/src && \
+#     cd /home/$USERNAME/ws_moveit/src && \
+#     git clone -b ${ROS_DISTRO} https://github.com/moveit/moveit_task_constructor.git && \
+#     git clone -b ${ROS_DISTRO} https://github.com/moveit/moveit2_tutorials && \
+#     cd ../ && \
+#     rosdep install -r --from-paths . --ignore-src --rosdistro ${ROS_DISTRO} -y && \
+#     colcon build && \
+#     rm -rf build/ log/ src/ && \
+#     echo "source /home/${USERNAME}/ws_moveit/install/setup.bash" >> ~/.bashrc
+
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
-    mkdir -p /home/$USERNAME/ws_moveit/src && \
-    cd /home/$USERNAME/ws_moveit/src && \
-    git clone -b ${ROS_DISTRO} https://github.com/moveit/moveit_task_constructor.git && \
-    git clone -b ${ROS_DISTRO} https://github.com/moveit/moveit2_tutorials && \
-    cd ../ && \
-    rosdep install -r --from-paths . --ignore-src --rosdistro ${ROS_DISTRO} -y && \
-    colcon build && \
+    mkdir -p /home/${USERNAME}/ws_moveit/src && \
+    cd /home/${USERNAME}/ws_moveit/src && \
+    git clone -b main https://github.com/moveit/moveit2_tutorials && \
+    vcs import --recursive < moveit2_tutorials/moveit2_tutorials.repos && \
+    sudo apt remove ros-$ROS_DISTRO-moveit* -y && \
+    sudo apt update && rosdep install -r --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y && \
+    cd /home/${USERNAME}/ws_moveit/ && \
+    colcon build --mixin release && \
     rm -rf build/ log/ src/ && \
     echo "source /home/${USERNAME}/ws_moveit/install/setup.bash" >> ~/.bashrc
-
