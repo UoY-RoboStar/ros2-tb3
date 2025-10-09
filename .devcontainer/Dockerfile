@@ -106,10 +106,10 @@ SHELL ["/bin/bash", "-c"]
 #     echo "source /home/${USERNAME}/ws_moveit/install/setup.bash" >> ~/.bashrc
 
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
-    colcon mixin add default https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml && \
-    colcon mixin update default && \
     mkdir -p /home/${USERNAME}/ws_moveit/src && \
     cd /home/${USERNAME}/ws_moveit/src && \
+    colcon mixin add default https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml && \
+    colcon mixin update default && \
     git clone -b main https://github.com/moveit/moveit2_tutorials && \
     vcs import --recursive < moveit2_tutorials/moveit2_tutorials.repos && \
     sudo apt remove ros-$ROS_DISTRO-moveit* -y && \
