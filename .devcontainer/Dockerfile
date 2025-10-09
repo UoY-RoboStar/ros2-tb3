@@ -37,6 +37,9 @@ RUN apt update && apt install -y ros-humble-rtabmap-ros
 # Install movit2
 RUN apt update && apt install -y ros-humble-moveit ros-humble-moveit-resources-panda-moveit-config
 
+# Install extra Gazebo plugins
+RUN apt update && apt install -y ros-humble-gazebo-ros2-control
+
 # Install RMW CycloneDDS
 # RUN apt install -y ros-humble-rmw-cyclonedds-cpp
 
