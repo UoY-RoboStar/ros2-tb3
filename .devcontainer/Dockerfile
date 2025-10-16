@@ -90,7 +90,7 @@ RUN echo 'source /usr/share/gazebo/setup.sh' >> ~/.bashrc
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 
 # Install useful Python3 packages from pip as user
-RUN pip install gdown
+RUN pip install gdown pydantic angles transitions python-statemachine
 
 # Update PATH
 RUN echo "export PATH=\$PATH:/home/ubuntu/.local/bin" >> ~/.bashrc
