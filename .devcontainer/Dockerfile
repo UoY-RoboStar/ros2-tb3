@@ -23,7 +23,7 @@ RUN echo 'pcm.!default { type null }' >> /etc/asound.conf
 RUN apt update && apt upgrade -y
 
 # Install Git and other utilities
-RUN apt install -y git psmisc wget acl
+RUN apt install -y git psmisc wget acl software-properties-common
 
 # Install Gazebo
 RUN apt install -y gazebo
@@ -45,6 +45,14 @@ RUN apt update && apt install -y ros-humble-gazebo-ros2-control
 
 # Install useful Python3 packages
 RUN apt install -y python3-pip python3-rosdep python3-argcomplete python3-transforms3d
+
+# Install mesa utils
+RUN apt upadte && apt install -y mesa-utils
+
+# Update mesa drivers to latest version
+RUN add-apt-repository ppa:kisak/turtle && \
+    apt update && \
+    apt upgrade -y 
 
 # Switch from root to user
 USER $USERNAME
@@ -108,6 +116,7 @@ SHELL ["/bin/bash", "-c"]
 #     rm -rf build/ log/ src/ && \
 #     echo "source /home/${USERNAME}/ws_moveit/install/setup.bash" >> ~/.bashrc
 
+# Install moveit2 from source, including tutorials
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     mkdir -p /home/${USERNAME}/ws_moveit/src && \
     cd /home/${USERNAME}/ws_moveit/src && \
@@ -121,3 +130,25 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     colcon build --mixin release && \
     rm -rf build/ log/ src/ && \
     echo "source /home/${USERNAME}/ws_moveit/install/setup.bash" >> ~/.bashrc
+
+# Install ARGoS3 simulator
+RUN gdown --fuzzy https://drive.google.com/file/d/1gnWfCqNmbCQbxNDenp5-ek7P5bvTNgyD/view?usp=share_link -O /home/${USERNAME}/argos3_simulator-3.0.0-x86_64-beta59.deb && \
+    sudo apt update && sudo apt install /home/${USERNAME}/argos3_simulator-3.0.0-x86_64-beta59.deb && \
+    rm /home/${USERNAME}/argos3_simulator-3.0.0-x86_64-beta59.deb
+
+# Install ARGoS3 examples and build them
+RUN git clone https://github.com/ilpincy/argos3-examples.git /home/${USERNAME}/argos3-examples && \
+    mkdir -p /home/${USERNAME}/argos3-examples/build && \
+    cd /home/${USERNAME}/argos3-examples/build && \
+    cmake -DCMAKE_BUILD_TYPE=Release .. && \
+    make
+
+# Set ARGoS3 alias to use llvmpipe if running in a container without GPU support or WSL2
+RUN echo '\
+argos3() {\n\
+  if [ "\$GALLIUM_DRIVER" = "d3d12" ]; then\n\
+    GALLIUM_DRIVER=llvmpipe command argos3 "\$@"\n\
+  else\n\
+    command argos3 "\$@"\n\
+  fi\n\
+}' >> ~/.bashrc
