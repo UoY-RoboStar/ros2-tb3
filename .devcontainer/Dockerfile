@@ -47,7 +47,7 @@ RUN apt update && apt install -y ros-humble-gazebo-ros2-control
 RUN apt install -y python3-pip python3-rosdep python3-argcomplete python3-transforms3d
 
 # Install mesa utils
-RUN apt upadte && apt install -y mesa-utils
+RUN apt update && apt install -y mesa-utils
 
 # Update mesa drivers to latest version
 RUN add-apt-repository ppa:kisak/turtle && \
