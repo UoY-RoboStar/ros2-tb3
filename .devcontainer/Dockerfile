@@ -144,11 +144,12 @@ RUN git clone https://github.com/ilpincy/argos3-examples.git /home/${USERNAME}/a
     make
 
 # Set ARGoS3 alias to use llvmpipe if running in a container without GPU support or WSL2
-RUN echo '\
-argos3() {\n\
-  if [ "\$GALLIUM_DRIVER" = "d3d12" ]; then\n\
-    GALLIUM_DRIVER=llvmpipe command argos3 "\$@"\n\
-  else\n\
-    command argos3 "\$@"\n\
-  fi\n\
-}' >> ~/.bashrc
+RUN cat <<'EOF' >> ~/.bashrc
+argos3() {
+  if [ "$GALLIUM_DRIVER" = "d3d12" ]; then
+    GALLIUM_DRIVER=llvmpipe command argos3 "$@"
+  else
+    command argos3 "$@"
+  fi
+}
+EOF
