@@ -132,7 +132,7 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     echo "source /home/${USERNAME}/ws_moveit/install/setup.bash" >> ~/.bashrc
 
 # Install ARGoS3 simulator
-RUN gdown --fuzzy https://drive.google.com/file/d/1gnWfCqNmbCQbxNDenp5-ek7P5bvTNgyD/view?usp=share_link -O /home/${USERNAME}/argos3_simulator-3.0.0-x86_64-beta59.deb && \
+RUN /home/${USERNAME}/.local/bin/gdown --fuzzy https://drive.google.com/file/d/1gnWfCqNmbCQbxNDenp5-ek7P5bvTNgyD/view?usp=share_link -O /home/${USERNAME}/argos3_simulator-3.0.0-x86_64-beta59.deb && \
     sudo apt update && sudo apt install /home/${USERNAME}/argos3_simulator-3.0.0-x86_64-beta59.deb && \
     rm /home/${USERNAME}/argos3_simulator-3.0.0-x86_64-beta59.deb
 
