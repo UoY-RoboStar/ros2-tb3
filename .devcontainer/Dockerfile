@@ -143,6 +143,19 @@ RUN git clone https://github.com/ilpincy/argos3-examples.git /home/${USERNAME}/a
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
     make
 
+# Install GSL libraries
+RUN sudo apt update && sudo apt install -y libgsl27 libgsl-dev
+
+# Install ARGos3 ROS2 bridge
+RUN --mount=type=secret,id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN export OpenGL_GL_PREFERENCE=GLVND && \
+    mkdir -p /home/${USERNAME}/bridge_ws/src && \
+    git clone https://${GIT_AUTH_TOKEN}@github.com/UoY-RoboStar/argos3-ros2-bridge.git /home/${USERNAME}/bridge_ws/src/argos3-ros2-bridge && \
+    cd /home/${USERNAME}/bridge_ws && \
+    source /opt/ros/${ROS_DISTRO}/setup.bash && \
+    colcon build --packages-select argos3_ros2_bridge && \
+    colcon build --packages-select argos3_ros2_bridge --cmake-args -DFIRST_TIME=Off && \
+    echo "export ARGOS_PLUGIN_PATH=/home/${USERNAME}/argos3-examples:/home/${USERNAME}/bridge_ws/install/argos3_ros2_bridge/lib:ARGOS_PLUGIN_PATH" >> ~/.bashrc
+
 # Set ARGoS3 alias to use llvmpipe if running in a container without GPU support or WSL2
 RUN cat <<'EOF' >> ~/.bashrc
 argos3() {
