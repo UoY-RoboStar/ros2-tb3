@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.10.0
+
 FROM osrf/ros:humble-desktop-full
 
 # Add ubuntu user with same UID and GID as your host system, if it doesn't already exist
