@@ -2,7 +2,7 @@
     "name": "auro",
     "build": {
         "dockerfile":"Dockerfile",
-        "options": [ "--secret id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN" ]
+        "options": [ "--secret \"id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN\"" ]
      },
     "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind",
     "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
