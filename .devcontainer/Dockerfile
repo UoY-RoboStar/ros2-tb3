@@ -148,6 +148,7 @@ ARG GIT_ACCESS_TOKEN
 
 RUN echo "TEST"
 RUN echo TEST
+RUN echo $TEST
 RUN echo ${TEST}
 
 # Install ARGos3 ROS2 bridge
