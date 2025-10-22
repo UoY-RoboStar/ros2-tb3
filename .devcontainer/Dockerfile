@@ -143,10 +143,7 @@ RUN git clone https://github.com/ilpincy/argos3-examples.git /home/${USERNAME}/a
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
     make
 
-ARG TEST
-ARG GIT_ACCESS_TOKEN
-
-RUN --mount=type=secret,id=TEST echo $(cat /run/secrets/TEST)
+RUN --mount=type=secret,id=TEST,env=TEST echo ${TEST}
 
 # Install ARGos3 ROS2 bridge
 #RUN sudo apt update && sudo apt install -y libgsl27 libgsl-dev && \
