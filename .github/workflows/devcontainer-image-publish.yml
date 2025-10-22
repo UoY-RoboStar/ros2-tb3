@@ -24,11 +24,11 @@ jobs:
 
       - name: Build and run Dev Container task
         uses: devcontainers/ci@v0.3
-        env:
-            GIT_AUTH_TOKEN: ${{ secrets.ARGOS3_ROS2_BRIDGE_GIT_TOKEN }}
         with:
           # Change this to point to your image name
           imageName: ghcr.io/uoy-robostar/ros2-tb3/auro-dev
           runCmd: echo "success"
           refFilterForPush: refs/heads/main
+          env: |
+            TOKEN=${{ secrets.ARGOS3_ROS2_BRIDGE_GIT_TOKEN }}
             
