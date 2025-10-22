@@ -143,9 +143,11 @@ RUN git clone https://github.com/ilpincy/argos3-examples.git /home/${USERNAME}/a
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
     make
 
+# Install GSL libraries
+RUN sudo apt update && sudo apt install -y libgsl27 libgsl-dev
+
 # Install ARGos3 ROS2 bridge
-RUN -mount=type=secret,id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN sudo apt update && sudo apt install -y libgsl27 libgsl-dev && \
-    export OpenGL_GL_PREFERENCE=GLVND && \
+RUN --mount=type=secret,id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN export OpenGL_GL_PREFERENCE=GLVND && \
     mkdir -p /home/${USERNAME}/bridge_ws/src && \
     git clone https://${GIT_ACCESS_TOKEN}@github.com/UoY-RoboStar/argos3-ros2-bridge.git /home/${USERNAME}/bridge_ws/src/argos3-ros2-bridge && \
     cd /home/${USERNAME}/bridge_ws && \
