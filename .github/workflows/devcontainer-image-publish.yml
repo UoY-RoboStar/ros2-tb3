@@ -29,3 +29,6 @@ jobs:
           imageName: ghcr.io/uoy-robostar/ros2-tb3/auro-dev
           runCmd: echo "success"
           refFilterForPush: refs/heads/main
+          env:
+            GIT_AUTH_TOKEN: ${{ secrets.ARGOS3_ROS2_BRIDGE_GIT_TOKEN }}
+            
