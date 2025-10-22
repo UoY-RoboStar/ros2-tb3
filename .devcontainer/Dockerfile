@@ -156,7 +156,9 @@ RUN --mount=type=secret,id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN export OpenGL_GL_PR
     source /opt/ros/${ROS_DISTRO}/setup.bash && \
     colcon build --packages-select argos3_ros2_bridge && \
     colcon build --packages-select argos3_ros2_bridge --cmake-args -DFIRST_TIME=Off && \
-    echo "export ARGOS_PLUGIN_PATH=/home/${USERNAME}/argos3-examples:/home/${USERNAME}/bridge_ws/install/argos3_ros2_bridge/lib:ARGOS_PLUGIN_PATH" >> ~/.bashrc
+    echo "export ARGOS_PLUGIN_PATH=/home/${USERNAME}/argos3-examples:/home/${USERNAME}/bridge_ws/install/argos3_ros2_bridge/lib:$ARGOS_PLUGIN_PATH" >> ~/.bashrc && \
+    echo "export LD_LIBRARY_PATH=$ARGOS_PLUGIN_PATH:$LD_LIBRARY_PATH" >> ~/.bashrc && \
+    echo "source /home/${USERNAME}/bridge_ws/install/local_setup.bash" >> ~/.bashrc
 
 # Set ARGoS3 alias to use llvmpipe if running in a container without GPU support or WSL2
 RUN cat <<'EOF' >> ~/.bashrc
