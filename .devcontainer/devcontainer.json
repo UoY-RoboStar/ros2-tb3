@@ -1,9 +1,9 @@
 {
     "name": "auro",
     "build": {
-        "dockerfile":"Dockerfile"
+        "dockerfile":"Dockerfile",
+        "options": [ "--secret=id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN" ]
      },
-    "runArgs": [ "--secret id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN" ],
     "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind",
     "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
     // Destkop available via VNC on the browser or via VNC client
