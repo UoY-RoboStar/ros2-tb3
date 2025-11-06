@@ -25,7 +25,7 @@ RUN echo 'pcm.!default { type null }' >> /etc/asound.conf
 RUN apt update && apt upgrade -y
 
 # Install Git and other utilities
-RUN apt install -y git psmisc wget acl software-properties-common
+RUN apt install -y git psmisc wget acl software-properties-common lxterminal
 
 # Install Gazebo
 RUN apt install -y gazebo
@@ -50,6 +50,9 @@ RUN apt install -y python3-pip python3-rosdep python3-argcomplete python3-transf
 
 # Install mesa utils
 RUN apt update && apt install -y mesa-utils
+
+# Install OpenCL for Intel
+RUN apt update && apt install -y intel-opencl-icd clinfo
 
 # Update mesa drivers to latest version
 RUN add-apt-repository ppa:kisak/turtle && \
