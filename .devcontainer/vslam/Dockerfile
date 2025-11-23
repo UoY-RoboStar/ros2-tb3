@@ -91,6 +91,10 @@ RUN mkdir -p /home/${USERNAME}/stella/src && \
     colcon build && \
     rm -rf build/ log/ src/
 
+RUN mkdir -p /home/${USERNAME}/stella/vocab && \
+    curl -L -o /home/${USERNAME}/stella/vocab/orb_vocab.fbow \
+    https://raw.githubusercontent.com/stella-cv/FBoW_orb_vocab/main/orb_vocab.fbow    
+
 # Update ldconfig
 USER root
 RUN echo "/usr/local/lib" > /etc/ld.so.conf.d/stella_vslam.conf && ldconfig
