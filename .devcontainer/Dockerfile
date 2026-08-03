@@ -7,6 +7,10 @@ FROM ros:humble-ros-base
 # Populated automatically by buildx (e.g. "amd64", "arm64")
 ARG TARGETARCH
 
+# ROS's setup.bash uses bash-only syntax, so it can't be sourced under the default
+# /bin/sh (dash); switch the build shell to bash for the rest of the Dockerfile.
+SHELL ["/bin/bash", "-c"]
+
 # Add ubuntu user with same UID and GID as your host system, if it doesn't already exist
 # Since Ubuntu 24.04, a non-root user is created by default with the name vscode and UID=1000
 ARG USERNAME=ubuntu
@@ -62,7 +66,7 @@ RUN mkdir -p /opt/turtlebot3_gazebo_ws/src && \
     git clone -b humble https://github.com/ros-simulation/gazebo_ros2_control.git && \
     git clone -b humble https://github.com/ROBOTIS-GIT/turtlebot3_simulations.git && \
     cd /opt/turtlebot3_gazebo_ws && \
-    . /opt/ros/${ROS_DISTRO}/setup.bash && \
+    source /opt/ros/${ROS_DISTRO}/setup.bash && \
     rosdep update && \
     rosdep install --from-paths src --ignore-src -r -y && \
     colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release && \
