@@ -1,6 +1,11 @@
 # syntax=docker/dockerfile:1.10.0
 
-FROM osrf/ros:humble-desktop-full
+# osrf/ros:humble-desktop-full is amd64-only, so we build on the multi-arch
+# ros:humble-ros-base image (amd64 + arm64) and apt-install desktop-full ourselves.
+FROM ros:humble-ros-base
+
+# Populated automatically by buildx (e.g. "amd64", "arm64")
+ARG TARGETARCH
 
 # Add ubuntu user with same UID and GID as your host system, if it doesn't already exist
 # Since Ubuntu 24.04, a non-root user is created by default with the name vscode and UID=1000
@@ -27,20 +32,42 @@ RUN apt update && apt upgrade -y
 # Install Git and other utilities
 RUN apt install -y git psmisc wget acl software-properties-common lxterminal
 
-# Install Gazebo
-RUN apt install -y gazebo
+# Install the ROS desktop packages (rviz2, demos, perception, ...) that used to
+# come from the osrf/ros:humble-desktop-full base image
+RUN apt update && apt install -y ros-humble-desktop-full
 
-# Install Turtlebot
-RUN apt update && apt install -y ros-humble-dynamixel-sdk ros-humble-turtlebot3-msgs ros-humble-turtlebot3 ros-humble-turtlebot3-gazebo ros-humble-turtlebot3-navigation2 ros-humble-turtlebot3-simulations ros-humble-turtlebot3-teleop
+# Install Gazebo from Pedro Ribeiro's PPA (https://launchpad.net/~pfribeiro/+archive/ubuntu/ppa).
+# Ubuntu jammy does not ship a "gazebo"/"libgazebo-dev" binary for arm64, so the stock
+# archive can't be used on that architecture; the PPA publishes both amd64 and arm64 builds.
+RUN add-apt-repository -y ppa:pfribeiro/ppa && \
+    apt install -y gazebo libgazebo-dev
+
+# Install Turtlebot3
+RUN apt update && apt install -y ros-humble-dynamixel-sdk ros-humble-turtlebot3-msgs ros-humble-turtlebot3 ros-humble-turtlebot3-navigation2 ros-humble-turtlebot3-teleop
+
+# Build the Gazebo/Turtlebot3 simulation integration from source. ros-humble-turtlebot3-gazebo,
+# ros-humble-turtlebot3-simulations and ros-humble-gazebo-ros2-control are only published as
+# amd64 binaries by the ROS build farm, so to keep the same codebase on every architecture
+# these are always compiled from source rather than installed from apt on amd64 only, following
+# https://docs.robotis.com/docs/systems/turtlebot3/simulation/gazebo_simulation
+RUN mkdir -p /opt/turtlebot3_gazebo_ws/src && \
+    cd /opt/turtlebot3_gazebo_ws/src && \
+    git clone -b ros2 https://github.com/ros-simulation/gazebo_ros_pkgs.git && \
+    git clone -b humble https://github.com/ros-simulation/gazebo_ros2_control.git && \
+    git clone -b humble https://github.com/ROBOTIS-GIT/turtlebot3_simulations.git && \
+    cd /opt/turtlebot3_gazebo_ws && \
+    . /opt/ros/${ROS_DISTRO}/setup.bash && \
+    rosdep update && \
+    rosdep install --from-paths src --ignore-src -r -y && \
+    colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release && \
+    rm -rf src build log && \
+    echo "source /opt/turtlebot3_gazebo_ws/install/setup.bash" >> /etc/bash.bashrc
 
 # Install rtabmap-ros
 RUN apt update && apt install -y ros-humble-rtabmap-ros
 
 # Install movit2
 RUN apt update && apt install -y ros-humble-moveit ros-humble-moveit-resources-panda-moveit-config
-
-# Install extra Gazebo plugins
-RUN apt update && apt install -y ros-humble-gazebo-ros2-control
 
 # Install RMW CycloneDDS
 # RUN apt install -y ros-humble-rmw-cyclonedds-cpp
@@ -51,8 +78,11 @@ RUN apt install -y python3-pip python3-rosdep python3-argcomplete python3-transf
 # Install mesa utils
 RUN apt update && apt install -y mesa-utils
 
-# Install OpenCL for Intel
-RUN apt update && apt install -y intel-opencl-icd clinfo
+# Install OpenCL for Intel (amd64 only; intel-opencl-icd isn't published for arm64)
+RUN apt update && apt install -y clinfo && \
+    if [ "$TARGETARCH" = "amd64" ]; then \
+        apt install -y intel-opencl-icd; \
+    fi
 
 # Update mesa drivers to latest version
 RUN add-apt-repository ppa:kisak/turtle && \
@@ -136,32 +166,39 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     rm -rf build/ log/ src/ && \
     echo "source /home/${USERNAME}/ws_moveit/install/setup.bash" >> ~/.bashrc
 
-# Install ARGoS3 simulator
-RUN /home/${USERNAME}/.local/bin/gdown --fuzzy https://drive.google.com/file/d/1gnWfCqNmbCQbxNDenp5-ek7P5bvTNgyD/view?usp=share_link -O /home/${USERNAME}/argos3_simulator-3.0.0-x86_64-beta59.deb && \
-    sudo apt update && sudo apt install -y /home/${USERNAME}/argos3_simulator-3.0.0-x86_64-beta59.deb && \
-    rm /home/${USERNAME}/argos3_simulator-3.0.0-x86_64-beta59.deb
+# Install ARGoS3 simulator (amd64 only: the prebuilt .deb below is x86_64-only and there is
+# no arm64 build available yet, so the ARGoS3 tooling is skipped entirely on arm64)
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        /home/${USERNAME}/.local/bin/gdown --fuzzy https://drive.google.com/file/d/1gnWfCqNmbCQbxNDenp5-ek7P5bvTNgyD/view?usp=share_link -O /home/${USERNAME}/argos3_simulator-3.0.0-x86_64-beta59.deb && \
+        sudo apt update && sudo apt install -y /home/${USERNAME}/argos3_simulator-3.0.0-x86_64-beta59.deb && \
+        rm /home/${USERNAME}/argos3_simulator-3.0.0-x86_64-beta59.deb; \
+    fi
 
-# Install ARGoS3 examples and build them
-RUN git clone https://github.com/ilpincy/argos3-examples.git /home/${USERNAME}/argos3-examples && \
-    mkdir -p /home/${USERNAME}/argos3-examples/build && \
-    cd /home/${USERNAME}/argos3-examples/build && \
-    cmake -DCMAKE_BUILD_TYPE=Release .. && \
-    make
+# Install ARGoS3 examples and build them (amd64 only, see above)
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        git clone https://github.com/ilpincy/argos3-examples.git /home/${USERNAME}/argos3-examples && \
+        mkdir -p /home/${USERNAME}/argos3-examples/build && \
+        cd /home/${USERNAME}/argos3-examples/build && \
+        cmake -DCMAKE_BUILD_TYPE=Release .. && \
+        make; \
+    fi
 
 # Install GSL libraries
 RUN sudo apt update && sudo apt install -y libgsl27 libgsl-dev
 
-# Install ARGos3 ROS2 bridge
-RUN --mount=type=secret,id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN export OpenGL_GL_PREFERENCE=GLVND && \
-    mkdir -p /home/${USERNAME}/bridge_ws/src && \
-    git clone https://${GIT_AUTH_TOKEN}@github.com/UoY-RoboStar/argos3-ros2-bridge.git /home/${USERNAME}/bridge_ws/src/argos3-ros2-bridge && \
-    cd /home/${USERNAME}/bridge_ws && \
-    source /opt/ros/${ROS_DISTRO}/setup.bash && \
-    colcon build --packages-select argos3_ros2_bridge && \
-    colcon build --packages-select argos3_ros2_bridge --cmake-args -DFIRST_TIME=Off && \
-    echo "export ARGOS_PLUGIN_PATH=/home/${USERNAME}/argos3-examples:/home/${USERNAME}/bridge_ws/install/argos3_ros2_bridge/lib:\$ARGOS_PLUGIN_PATH" >> ~/.bashrc && \
-    echo "export LD_LIBRARY_PATH=\$ARGOS_PLUGIN_PATH:\$LD_LIBRARY_PATH" >> ~/.bashrc && \
-    echo "source /home/${USERNAME}/bridge_ws/install/local_setup.bash" >> ~/.bashrc
+# Install ARGos3 ROS2 bridge (amd64 only, depends on ARGoS3 above)
+RUN --mount=type=secret,id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN if [ "$TARGETARCH" = "amd64" ]; then \
+        export OpenGL_GL_PREFERENCE=GLVND && \
+        mkdir -p /home/${USERNAME}/bridge_ws/src && \
+        git clone https://${GIT_AUTH_TOKEN}@github.com/UoY-RoboStar/argos3-ros2-bridge.git /home/${USERNAME}/bridge_ws/src/argos3-ros2-bridge && \
+        cd /home/${USERNAME}/bridge_ws && \
+        source /opt/ros/${ROS_DISTRO}/setup.bash && \
+        colcon build --packages-select argos3_ros2_bridge && \
+        colcon build --packages-select argos3_ros2_bridge --cmake-args -DFIRST_TIME=Off && \
+        echo "export ARGOS_PLUGIN_PATH=/home/${USERNAME}/argos3-examples:/home/${USERNAME}/bridge_ws/install/argos3_ros2_bridge/lib:\$ARGOS_PLUGIN_PATH" >> ~/.bashrc && \
+        echo "export LD_LIBRARY_PATH=\$ARGOS_PLUGIN_PATH:\$LD_LIBRARY_PATH" >> ~/.bashrc && \
+        echo "source /home/${USERNAME}/bridge_ws/install/local_setup.bash" >> ~/.bashrc; \
+    fi
 
 # Set ARGoS3 alias to use llvmpipe if running in a container without GPU support or WSL2
 RUN cat <<'EOF' >> ~/.bashrc
