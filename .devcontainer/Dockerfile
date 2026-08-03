@@ -33,8 +33,14 @@ RUN apt update && apt upgrade -y
 RUN apt install -y git psmisc wget acl software-properties-common lxterminal
 
 # Install the ROS desktop packages (rviz2, demos, perception, ...) that used to
-# come from the osrf/ros:humble-desktop-full base image
-RUN apt update && apt install -y ros-humble-desktop-full
+# come from the osrf/ros:humble-desktop-full base image. We deliberately install
+# ros-humble-desktop + ros-humble-perception rather than ros-humble-desktop-full:
+# the "-full" metapackage also pulls in ros-humble-simulation (the Ignition/ros_gz
+# stack), which this project doesn't use (Gazebo classic is installed separately
+# below) and which currently has a broken arm64 dependency chain in the ROS apt
+# repo (libignition-gazebo6 requires libignition-sensors6 >= 6.8.1, but only
+# 6.8.0 is installable for arm64 at the time of writing).
+RUN apt update && apt install -y ros-humble-desktop ros-humble-perception
 
 # Install Gazebo from Pedro Ribeiro's PPA (https://launchpad.net/~pfribeiro/+archive/ubuntu/ppa).
 # Ubuntu jammy does not ship a "gazebo"/"libgazebo-dev" binary for arm64, so the stock
