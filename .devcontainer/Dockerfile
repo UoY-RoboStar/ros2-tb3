@@ -162,11 +162,11 @@ SHELL ["/bin/bash", "-c"]
 #     echo "source /home/${USERNAME}/ws_moveit/install/setup.bash" >> ~/.bashrc
 
 # Install moveit2 from source, including tutorials.
-# ros_gz_sim/gz_ros2_control are runtime-only (exec_depend) deps of the ros2_kortex
-# demo pulled in by moveit2_tutorials.repos; they're part of the newer Ignition/gz
-# Gazebo stack that this project doesn't use (we target Gazebo classic throughout,
-# via gazebo_ros_pkgs/gazebo_ros2_control built from source above), and currently
-# have a broken arm64 dependency chain in the ROS apt repo, so they're skipped here.
+# ros2_kortex/ros2_robotiq_gripper/serial are only pulled in by moveit2_tutorials.repos
+# as a temporary source stand-in "until rolling binaries are available" (per its own
+# comments) for an unrelated Kinova-arm demo; nothing else in the tutorials depends on
+# them. kortex_api (part of ros2_kortex) vendors a prebuilt SDK that is hard-coded to
+# reject any architecture other than x86_64, so these are removed rather than built.
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     mkdir -p /home/${USERNAME}/ws_moveit/src && \
     cd /home/${USERNAME}/ws_moveit/src && \
@@ -174,9 +174,9 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     colcon --log-base /dev/null mixin update default && \
     git clone -b main https://github.com/moveit/moveit2_tutorials && \
     vcs import --recursive < moveit2_tutorials/moveit2_tutorials.repos && \
+    rm -rf ros2_kortex ros2_robotiq_gripper serial && \
     sudo apt remove ros-$ROS_DISTRO-moveit* -y && \
-    sudo apt update && rosdep install -r --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y \
-        --skip-keys="ros_gz_sim gz_ros2_control" && \
+    sudo apt update && rosdep install -r --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y && \
     cd /home/${USERNAME}/ws_moveit/ && \
     colcon build --mixin release && \
     rm -rf build/ log/ src/ && \
