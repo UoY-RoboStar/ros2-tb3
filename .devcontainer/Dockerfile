@@ -167,10 +167,12 @@ SHELL ["/bin/bash", "-c"]
 # comments) for an unrelated Kinova-arm demo; nothing else in the tutorials depends on
 # them. kortex_api (part of ros2_kortex) vendors a prebuilt SDK that is hard-coded to
 # reject any architecture other than x86_64, so these are removed rather than built.
-# moveit_setup_app_plugins is skipped because it currently fails to compile (a latent
-# bug unrelated to this project - see moveit/moveit2 launch_bundle.hpp); it's only an
-# exec_depend (runtime plugin) of the moveit_setup_assistant GUI tool, not a build
-# dependency of anything else, so skipping it doesn't affect the rest of the workspace.
+# moveit2_tutorials.repos pins moveit2 itself to the "main" branch (a moving target,
+# not a release), which briefly broke the build on 2026-08-03 (a compile error in
+# moveit_setup_app_plugins caused by two related moveit2 commits landing out of
+# order - unrelated to this project or to arm64). Pinning to a commit verified to
+# build cleanly avoids re-hitting that class of transient upstream breakage; bump
+# this SHA on purpose when picking up new moveit2 changes, rather than tracking main.
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     mkdir -p /home/${USERNAME}/ws_moveit/src && \
     cd /home/${USERNAME}/ws_moveit/src && \
@@ -178,11 +180,12 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     colcon --log-base /dev/null mixin update default && \
     git clone -b main https://github.com/moveit/moveit2_tutorials && \
     vcs import --recursive < moveit2_tutorials/moveit2_tutorials.repos && \
+    cd moveit2 && git checkout 4a5021bf2c410f0152172e17eac9704db7dce11b && cd .. && \
     rm -rf ros2_kortex ros2_robotiq_gripper serial && \
     sudo apt remove ros-$ROS_DISTRO-moveit* -y && \
     sudo apt update && rosdep install -r --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y && \
     cd /home/${USERNAME}/ws_moveit/ && \
-    colcon build --mixin release --packages-skip moveit_setup_app_plugins && \
+    colcon build --mixin release && \
     rm -rf build/ log/ src/ && \
     echo "source /home/${USERNAME}/ws_moveit/install/setup.bash" >> ~/.bashrc
 
