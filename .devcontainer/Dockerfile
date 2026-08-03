@@ -167,6 +167,10 @@ SHELL ["/bin/bash", "-c"]
 # comments) for an unrelated Kinova-arm demo; nothing else in the tutorials depends on
 # them. kortex_api (part of ros2_kortex) vendors a prebuilt SDK that is hard-coded to
 # reject any architecture other than x86_64, so these are removed rather than built.
+# moveit_setup_app_plugins is skipped because it currently fails to compile (a latent
+# bug unrelated to this project - see moveit/moveit2 launch_bundle.hpp); it's only an
+# exec_depend (runtime plugin) of the moveit_setup_assistant GUI tool, not a build
+# dependency of anything else, so skipping it doesn't affect the rest of the workspace.
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     mkdir -p /home/${USERNAME}/ws_moveit/src && \
     cd /home/${USERNAME}/ws_moveit/src && \
@@ -178,7 +182,7 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     sudo apt remove ros-$ROS_DISTRO-moveit* -y && \
     sudo apt update && rosdep install -r --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y && \
     cd /home/${USERNAME}/ws_moveit/ && \
-    colcon build --mixin release && \
+    colcon build --mixin release --packages-skip moveit_setup_app_plugins && \
     rm -rf build/ log/ src/ && \
     echo "source /home/${USERNAME}/ws_moveit/install/setup.bash" >> ~/.bashrc
 
