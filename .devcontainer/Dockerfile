@@ -196,8 +196,10 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
 
 # Install ARGoS3 simulator (amd64 only: the prebuilt .deb below is x86_64-only and there is
 # no arm64 build available yet, so the ARGoS3 tooling is skipped entirely on arm64)
+# gdown's --fuzzy flag (needed to accept a Drive "view" share link rather than a bare file
+# id) was removed in gdown 6.x; passing the share URL directly now works without it.
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
-        /home/${USERNAME}/.local/bin/gdown --fuzzy https://drive.google.com/file/d/1gnWfCqNmbCQbxNDenp5-ek7P5bvTNgyD/view?usp=share_link -O /home/${USERNAME}/argos3_simulator-3.0.0-x86_64-beta59.deb && \
+        /home/${USERNAME}/.local/bin/gdown https://drive.google.com/file/d/1gnWfCqNmbCQbxNDenp5-ek7P5bvTNgyD/view?usp=share_link -O /home/${USERNAME}/argos3_simulator-3.0.0-x86_64-beta59.deb && \
         sudo apt update && sudo apt install -y /home/${USERNAME}/argos3_simulator-3.0.0-x86_64-beta59.deb && \
         rm /home/${USERNAME}/argos3_simulator-3.0.0-x86_64-beta59.deb; \
     fi
