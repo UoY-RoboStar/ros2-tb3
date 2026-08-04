@@ -1,9 +1,12 @@
 {
     "name": "auro",
-    "build": {
-        "dockerfile":"Dockerfile",
-        "options": [ "--secret=type=env,id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN" ]
-     },
+    // Pulls the image built and published by the "docker-build"/"docker-merge" jobs in
+    // devcontainer-image-publish.yml, rather than rebuilding the whole Dockerfile again -
+    // that workflow's devcontainer-build job just layers devcontainer Features (below) on
+    // top of this. If you're actively editing the Dockerfile itself, switch this back to
+    // "build": { "dockerfile": "Dockerfile", "options": [ "--secret=type=env,id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN" ] }
+    // locally so your changes take effect without waiting on a published image.
+    "image": "ghcr.io/uoy-robostar/ros2-tb3-univ:latest",
     "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind",
     "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
     // Destkop available via VNC on the browser or via VNC client
