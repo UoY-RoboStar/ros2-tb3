@@ -178,10 +178,16 @@ jobs:
   # already built and published above, rather than rebuilding the whole Dockerfile a
   # second time. Waits for docker-merge so a "push" run picks up this commit's freshly
   # tagged ":latest" - but still runs (pulling whatever ":latest" currently exists) when
-  # docker-merge is skipped, i.e. on PRs.
+  # docker-merge is skipped because it's a PR. docker-build's own result is checked
+  # separately: docker-merge is *also* skipped (not failed) when docker-build fails, since
+  # its "needs: docker-build" has no always() - without this, a failed docker-build would
+  # look identical to "skipped because PR" and this job would wrongly proceed anyway.
   devcontainer-build:
-    needs: docker-merge
-    if: always() && (needs.docker-merge.result == 'success' || needs.docker-merge.result == 'skipped')
+    needs: [docker-build, docker-merge]
+    if: |
+      always() &&
+      needs.docker-build.result == 'success' &&
+      (needs.docker-merge.result == 'success' || needs.docker-merge.result == 'skipped')
     strategy:
       fail-fast: false
       # Native runners: linux/arm64 builds on a hosted arm64 runner instead of

@@ -201,7 +201,11 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then ARGOS3_ARCH=aarch64; else ARGOS3_ARCH=x
     curl -fsSL -o /home/${USERNAME}/argos3_simulator-3.0.0-${ARGOS3_ARCH}-beta59.deb \
         "https://github.com/UoY-RoboStar/argos3/releases/download/3.0.0-beta59/argos3_simulator-3.0.0-${ARGOS3_ARCH}-beta59.deb" && \
     sudo apt update && sudo apt install -y /home/${USERNAME}/argos3_simulator-3.0.0-${ARGOS3_ARCH}-beta59.deb && \
-    rm /home/${USERNAME}/argos3_simulator-3.0.0-${ARGOS3_ARCH}-beta59.deb
+    rm /home/${USERNAME}/argos3_simulator-3.0.0-${ARGOS3_ARCH}-beta59.deb && \
+    # The aarch64 .deb installs under /usr/local instead of /usr (unlike the x86_64 one).
+    # argos3-ros2-bridge's plugins/bridge/CMakeLists.txt hardcodes /usr/lib/argos3/*.so as
+    # link targets, so symlink it into place if the package installed elsewhere.
+    if [ ! -e /usr/lib/argos3 ] && [ -d /usr/local/lib/argos3 ]; then sudo ln -s /usr/local/lib/argos3 /usr/lib/argos3; fi
 
 # Install ARGoS3 examples and build them
 RUN git clone https://github.com/ilpincy/argos3-examples.git /home/${USERNAME}/argos3-examples && \
