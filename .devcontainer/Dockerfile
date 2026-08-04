@@ -69,7 +69,7 @@ RUN mkdir -p /opt/turtlebot3_gazebo_ws/src && \
     source /opt/ros/${ROS_DISTRO}/setup.bash && \
     rosdep update && \
     rosdep install --from-paths src --ignore-src -r -y && \
-    colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release && \
+    colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release && \
     rm -rf src build log && \
     echo "source /opt/turtlebot3_gazebo_ws/install/setup.bash" >> /etc/bash.bashrc
 
