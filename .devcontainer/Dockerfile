@@ -167,12 +167,17 @@ SHELL ["/bin/bash", "-c"]
 # comments) for an unrelated Kinova-arm demo; nothing else in the tutorials depends on
 # them. kortex_api (part of ros2_kortex) vendors a prebuilt SDK that is hard-coded to
 # reject any architecture other than x86_64, so these are removed rather than built.
-# moveit2_tutorials.repos pins moveit2 itself to the "main" branch (a moving target,
-# not a release), which briefly broke the build on 2026-08-03 (a compile error in
-# moveit_setup_app_plugins caused by two related moveit2 commits landing out of
-# order - unrelated to this project or to arm64). Pinning to a commit verified to
-# build cleanly avoids re-hitting that class of transient upstream breakage; bump
-# this SHA on purpose when picking up new moveit2 changes, rather than tracking main.
+# The moveit binary packages are removed *twice*: once before rosdep so its resolution
+# isn't confused by them, and again right after rosdep (before colcon build). This is
+# needed because rosdep install --ignore-src still resolves the unrelated binary
+# package ros-$ROS_DISTRO-kinova-gen3-7dof-robotiq-2f-85-moveit-config (a rosdep key
+# from the same Kinova demo, but not part of the ros2_kortex/ros2_robotiq_gripper
+# source repos removed above), and apt pulls the entire moveit binary stack back in as
+# its dependencies. Left in place, those binary headers (e.g. moveit_setup_framework's
+# templates.hpp) shadow the freshly-built source headers and cause a spurious
+# "'variables' was not declared" compile error in moveit_setup_app_plugins - regardless
+# of which moveit2 commit is checked out, so pinning moveit2 to a fixed SHA does not
+# help; the second apt remove is the actual fix.
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     mkdir -p /home/${USERNAME}/ws_moveit/src && \
     cd /home/${USERNAME}/ws_moveit/src && \
@@ -180,10 +185,10 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     colcon --log-base /dev/null mixin update default && \
     git clone -b main https://github.com/moveit/moveit2_tutorials && \
     vcs import --recursive < moveit2_tutorials/moveit2_tutorials.repos && \
-    cd moveit2 && git checkout 4a5021bf2c410f0152172e17eac9704db7dce11b && cd .. && \
     rm -rf ros2_kortex ros2_robotiq_gripper serial && \
     sudo apt remove ros-$ROS_DISTRO-moveit* -y && \
     sudo apt update && rosdep install -r --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y && \
+    sudo apt remove ros-$ROS_DISTRO-moveit* -y && \
     cd /home/${USERNAME}/ws_moveit/ && \
     colcon build --mixin release && \
     rm -rf build/ log/ src/ && \
