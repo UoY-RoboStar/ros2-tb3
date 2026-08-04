@@ -41,6 +41,12 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # devcontainers/cli builds with "docker buildx build --output type=oci", which the
+      # default "docker" buildx driver on GitHub-hosted runners can't export - it needs the
+      # docker-container driver instead.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       # Builds and pushes a single-platform, arch-suffixed tag. The merge job
       # below combines the amd64/arm64 tags into one multi-arch manifest.
       - name: Build and run Dev Container task
