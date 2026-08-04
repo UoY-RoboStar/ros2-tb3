@@ -194,41 +194,37 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     rm -rf build/ log/ src/ && \
     echo "source /home/${USERNAME}/ws_moveit/install/setup.bash" >> ~/.bashrc
 
-# Install ARGoS3 simulator (amd64 only: the prebuilt .deb below is x86_64-only and there is
-# no arm64 build available yet, so the ARGoS3 tooling is skipped entirely on arm64)
-# gdown's --fuzzy flag (needed to accept a Drive "view" share link rather than a bare file
-# id) was removed in gdown 6.x; passing the share URL directly now works without it.
-RUN if [ "$TARGETARCH" = "amd64" ]; then \
-        /home/${USERNAME}/.local/bin/gdown https://drive.google.com/file/d/1gnWfCqNmbCQbxNDenp5-ek7P5bvTNgyD/view?usp=share_link -O /home/${USERNAME}/argos3_simulator-3.0.0-x86_64-beta59.deb && \
-        sudo apt update && sudo apt install -y /home/${USERNAME}/argos3_simulator-3.0.0-x86_64-beta59.deb && \
-        rm /home/${USERNAME}/argos3_simulator-3.0.0-x86_64-beta59.deb; \
-    fi
+# Install ARGoS3 simulator. The upstream project only publishes x86_64 packages, so this
+# uses UoY-RoboStar's own build (https://github.com/UoY-RoboStar/argos3/releases), which
+# publishes .debs for both amd64 and arm64.
+RUN if [ "$TARGETARCH" = "arm64" ]; then ARGOS3_ARCH=aarch64; else ARGOS3_ARCH=x86_64; fi && \
+    curl -fsSL -o /home/${USERNAME}/argos3_simulator-3.0.0-${ARGOS3_ARCH}-beta59.deb \
+        "https://github.com/UoY-RoboStar/argos3/releases/download/3.0.0-beta59/argos3_simulator-3.0.0-${ARGOS3_ARCH}-beta59.deb" && \
+    sudo apt update && sudo apt install -y /home/${USERNAME}/argos3_simulator-3.0.0-${ARGOS3_ARCH}-beta59.deb && \
+    rm /home/${USERNAME}/argos3_simulator-3.0.0-${ARGOS3_ARCH}-beta59.deb
 
-# Install ARGoS3 examples and build them (amd64 only, see above)
-RUN if [ "$TARGETARCH" = "amd64" ]; then \
-        git clone https://github.com/ilpincy/argos3-examples.git /home/${USERNAME}/argos3-examples && \
-        mkdir -p /home/${USERNAME}/argos3-examples/build && \
-        cd /home/${USERNAME}/argos3-examples/build && \
-        cmake -DCMAKE_BUILD_TYPE=Release .. && \
-        make; \
-    fi
+# Install ARGoS3 examples and build them
+RUN git clone https://github.com/ilpincy/argos3-examples.git /home/${USERNAME}/argos3-examples && \
+    mkdir -p /home/${USERNAME}/argos3-examples/build && \
+    cd /home/${USERNAME}/argos3-examples/build && \
+    cmake -DCMAKE_BUILD_TYPE=Release .. && \
+    make
 
 # Install GSL libraries
 RUN sudo apt update && sudo apt install -y libgsl27 libgsl-dev
 
-# Install ARGos3 ROS2 bridge (amd64 only, depends on ARGoS3 above)
-RUN --mount=type=secret,id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN if [ "$TARGETARCH" = "amd64" ]; then \
-        export OpenGL_GL_PREFERENCE=GLVND && \
-        mkdir -p /home/${USERNAME}/bridge_ws/src && \
-        git clone https://${GIT_AUTH_TOKEN}@github.com/UoY-RoboStar/argos3-ros2-bridge.git /home/${USERNAME}/bridge_ws/src/argos3-ros2-bridge && \
-        cd /home/${USERNAME}/bridge_ws && \
-        source /opt/ros/${ROS_DISTRO}/setup.bash && \
-        colcon build --packages-select argos3_ros2_bridge && \
-        colcon build --packages-select argos3_ros2_bridge --cmake-args -DFIRST_TIME=Off && \
-        echo "export ARGOS_PLUGIN_PATH=/home/${USERNAME}/argos3-examples:/home/${USERNAME}/bridge_ws/install/argos3_ros2_bridge/lib:\$ARGOS_PLUGIN_PATH" >> ~/.bashrc && \
-        echo "export LD_LIBRARY_PATH=\$ARGOS_PLUGIN_PATH:\$LD_LIBRARY_PATH" >> ~/.bashrc && \
-        echo "source /home/${USERNAME}/bridge_ws/install/local_setup.bash" >> ~/.bashrc; \
-    fi
+# Install ARGos3 ROS2 bridge (depends on ARGoS3 above)
+RUN --mount=type=secret,id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN \
+    export OpenGL_GL_PREFERENCE=GLVND && \
+    mkdir -p /home/${USERNAME}/bridge_ws/src && \
+    git clone https://${GIT_AUTH_TOKEN}@github.com/UoY-RoboStar/argos3-ros2-bridge.git /home/${USERNAME}/bridge_ws/src/argos3-ros2-bridge && \
+    cd /home/${USERNAME}/bridge_ws && \
+    source /opt/ros/${ROS_DISTRO}/setup.bash && \
+    colcon build --packages-select argos3_ros2_bridge && \
+    colcon build --packages-select argos3_ros2_bridge --cmake-args -DFIRST_TIME=Off && \
+    echo "export ARGOS_PLUGIN_PATH=/home/${USERNAME}/argos3-examples:/home/${USERNAME}/bridge_ws/install/argos3_ros2_bridge/lib:\$ARGOS_PLUGIN_PATH" >> ~/.bashrc && \
+    echo "export LD_LIBRARY_PATH=\$ARGOS_PLUGIN_PATH:\$LD_LIBRARY_PATH" >> ~/.bashrc && \
+    echo "source /home/${USERNAME}/bridge_ws/install/local_setup.bash" >> ~/.bashrc
 
 # Set ARGoS3 alias to use llvmpipe if running in a container without GPU support or WSL2
 RUN cat <<'EOF' >> ~/.bashrc
