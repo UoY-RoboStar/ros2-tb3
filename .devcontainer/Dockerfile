@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1.10.0
 
-# osrf/ros:humble-desktop-full is amd64-only, so we build on the multi-arch
-# ros:humble-ros-base image (amd64 + arm64) and apt-install desktop-full ourselves.
-FROM ros:humble-ros-base
+# osrf/ros:jazzy-desktop-full is amd64-only, so we build on the multi-arch
+# ros:jazzy-ros-base image (amd64 + arm64) and apt-install desktop/perception ourselves.
+FROM ros:jazzy-ros-base
 
 # Populated automatically by buildx (e.g. "amd64", "arm64")
 ARG TARGETARCH
@@ -37,50 +37,38 @@ RUN apt update && apt upgrade -y
 RUN apt install -y git psmisc wget acl software-properties-common lxterminal
 
 # Install the ROS desktop packages (rviz2, demos, perception, ...) that used to
-# come from the osrf/ros:humble-desktop-full base image. We deliberately install
-# ros-humble-desktop + ros-humble-perception rather than ros-humble-desktop-full:
-# the "-full" metapackage also pulls in ros-humble-simulation (the Ignition/ros_gz
-# stack), which this project doesn't use (Gazebo classic is installed separately
-# below) and which currently has a broken arm64 dependency chain in the ROS apt
-# repo (libignition-gazebo6 requires libignition-sensors6 >= 6.8.1, but only
-# 6.8.0 is installable for arm64 at the time of writing).
-RUN apt update && apt install -y ros-humble-desktop ros-humble-perception
+# come from the osrf/ros:jazzy-desktop-full base image. We deliberately install
+# ros-jazzy-desktop + ros-jazzy-perception rather than ros-jazzy-desktop-full: the
+# "-full" metapackage also pulls in ros-jazzy-simulation, which includes simulators
+# this project doesn't use (e.g. Webots bridges) - ros-jazzy-turtlebot3-gazebo below
+# already pulls in exactly the ros_gz/Gazebo Harmonic packages TurtleBot3 needs.
+RUN apt update && apt install -y ros-jazzy-desktop ros-jazzy-perception
 
-# Install Gazebo from Pedro Ribeiro's PPA (https://launchpad.net/~pfribeiro/+archive/ubuntu/ppa).
-# Ubuntu jammy does not ship a "gazebo"/"libgazebo-dev" binary for arm64, so the stock
-# archive can't be used on that architecture; the PPA publishes both amd64 and arm64 builds.
-RUN add-apt-repository -y ppa:pfribeiro/ppa && \
-    apt install -y gazebo libgazebo-dev
+# Add Open Robotics' Gazebo apt repo. ros-jazzy-turtlebot3-gazebo depends on the
+# gz-harmonic system libraries, which are published on packages.osrfoundation.org,
+# not packages.ros.org - without this repo those dependencies fail to resolve.
+RUN apt install -y lsb-release wget gnupg && \
+    wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
 
 # Install Turtlebot3
-RUN apt update && apt install -y ros-humble-dynamixel-sdk ros-humble-turtlebot3-msgs ros-humble-turtlebot3 ros-humble-turtlebot3-navigation2 ros-humble-turtlebot3-teleop
+RUN apt update && apt install -y ros-jazzy-dynamixel-sdk ros-jazzy-turtlebot3-msgs ros-jazzy-turtlebot3 ros-jazzy-turtlebot3-navigation2 ros-jazzy-turtlebot3-teleop
 
-# Build the Gazebo/Turtlebot3 simulation integration from source. ros-humble-turtlebot3-gazebo,
-# ros-humble-turtlebot3-simulations and ros-humble-gazebo-ros2-control are only published as
-# amd64 binaries by the ROS build farm, so to keep the same codebase on every architecture
-# these are always compiled from source rather than installed from apt on amd64 only, following
+# Install the Gazebo Harmonic/Turtlebot3 simulation integration from apt. Unlike Humble
+# (where these were amd64-only binaries, forcing a from-source build on every
+# architecture), ros-jazzy-turtlebot3-gazebo and ros-jazzy-gz-ros2-control are published
+# for both amd64 and arm64, following
 # https://docs.robotis.com/docs/systems/turtlebot3/simulation/gazebo_simulation
-RUN mkdir -p /opt/turtlebot3_gazebo_ws/src && \
-    cd /opt/turtlebot3_gazebo_ws/src && \
-    git clone -b ros2 https://github.com/ros-simulation/gazebo_ros_pkgs.git && \
-    git clone -b humble https://github.com/ros-simulation/gazebo_ros2_control.git && \
-    git clone -b humble https://github.com/ROBOTIS-GIT/turtlebot3_simulations.git && \
-    cd /opt/turtlebot3_gazebo_ws && \
-    source /opt/ros/${ROS_DISTRO}/setup.bash && \
-    rosdep update && \
-    rosdep install --from-paths src --ignore-src -r -y && \
-    colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release && \
-    rm -rf src build log && \
-    echo "source /opt/turtlebot3_gazebo_ws/install/setup.bash" >> /etc/bash.bashrc
+RUN apt update && apt install -y ros-jazzy-turtlebot3-gazebo ros-jazzy-gz-ros2-control
 
 # Install rtabmap-ros
-RUN apt update && apt install -y ros-humble-rtabmap-ros
+RUN apt update && apt install -y ros-jazzy-rtabmap-ros
 
 # Install movit2
-RUN apt update && apt install -y ros-humble-moveit ros-humble-moveit-resources-panda-moveit-config
+RUN apt update && apt install -y ros-jazzy-moveit ros-jazzy-moveit-resources-panda-moveit-config
 
 # Install RMW CycloneDDS
-# RUN apt install -y ros-humble-rmw-cyclonedds-cpp
+# RUN apt install -y ros-jazzy-rmw-cyclonedds-cpp
 
 # Install useful Python3 packages
 RUN apt install -y python3-pip python3-rosdep python3-argcomplete python3-transforms3d
@@ -93,11 +81,6 @@ RUN apt update && apt install -y clinfo && \
     if [ "$TARGETARCH" = "amd64" ]; then \
         apt install -y intel-opencl-icd; \
     fi
-
-# Update mesa drivers to latest version
-RUN add-apt-repository ppa:kisak/turtle && \
-    apt update && \
-    apt upgrade -y 
 
 # Switch from root to user
 USER $USERNAME
@@ -117,15 +100,9 @@ RUN rosdep update
 # Ignore warning for colcon builds
 RUN echo 'export PYTHONWARNINGS=ignore:::setuptools.command.install,ignore:::setuptools.command.easy_install,ignore:::pkg_resources' >> ~/.bashrc
 
-# Disable Gazebo classic EOL notices
-RUN echo 'export GAZEBO_SUPPRESS_EOL_WARNING=1' >> ~/.bashrc
-
-# Disable Gazebo logging by default
-RUN echo 'export GAZEBO_LOG_ENABLE=0' >> ~/.bashrc
-
 # Colcon_cd
 RUN echo "source /usr/share/colcon_cd/function/colcon_cd.sh" >> ~/.bashrc
-RUN echo "export _colcon_cd_root=/opt/ros/humble/" >> ~/.bashrc
+RUN echo "export _colcon_cd_root=/opt/ros/${ROS_DISTRO}/" >> ~/.bashrc
 
 # Colcon auto-complete
 RUN echo "source /usr/share/colcon_argcomplete/hook/colcon-argcomplete.bash" >> ~/.bashrc
@@ -136,14 +113,17 @@ RUN echo "source /usr/share/colcon_argcomplete/hook/colcon-argcomplete.bash" >> 
 # Set default turtlebot3 model
 RUN echo 'export TURTLEBOT3_MODEL=waffle_pi' >> ~/.bashrc
 
-# Gazebo configuration
-RUN echo 'source /usr/share/gazebo/setup.sh' >> ~/.bashrc
-
 # Source the ROS setup file
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 
-# Install useful Python3 packages from pip as user
-RUN pip install gdown pydantic angles transitions python-statemachine
+# Install useful Python3 packages from pip as user. Ubuntu 24.04 marks the system Python as
+# externally-managed (PEP 668) and refuses a plain `pip install`, so these go into a venv
+# instead - built with --system-site-packages so ROS's own python packages (e.g. rclpy) stay
+# visible, and activated from ~/.bashrc so interactive shells get both automatically.
+RUN sudo apt install -y python3-venv
+RUN python3 -m venv --system-site-packages /home/${USERNAME}/.venv
+RUN /home/${USERNAME}/.venv/bin/pip install gdown pydantic angles transitions python-statemachine
+RUN echo "source /home/${USERNAME}/.venv/bin/activate" >> ~/.bashrc
 
 # Update PATH
 RUN echo "export PATH=\$PATH:/home/ubuntu/.local/bin" >> ~/.bashrc
@@ -251,8 +231,9 @@ RUN sudo apt update && sudo apt install -y libglew-dev ffmpeg unzip
 RUN cd /home/${USERNAME}/ && \
     git clone https://github.com/stevenlovegrove/Pangolin.git && \
     cd Pangolin && \  
-    git checkout ad8b5f83 && \ 
-    sed -i -e "193,198d" ./src/utils/file_utils.cpp && \ 
+    git checkout ad8b5f83 && \
+    sed -i -e "193,198d" ./src/utils/file_utils.cpp && \
+    sed -i -e "1i #include <cstdint>" ./include/pangolin/log/packetstream_tags.h && \
     mkdir -p build && \
     cd build && \
     cmake \
@@ -318,6 +299,15 @@ RUN mkdir -p /home/${USERNAME}/stella/src && \
     source /opt/ros/${ROS_DISTRO}/setup.bash && \
     cd /home/${USERNAME}/stella/src && \
     git clone --recursive -b ros2 --depth 1 https://github.com/stella-cv/stella_vslam_ros.git && \
+    # stella_vslam_ros's CMakeLists.txt explicitly registers a "library_path" environment
+    # hook, which duplicates the one ament_export_targets(... HAS_LIBRARY_TARGET) already
+    # registers automatically in current ament_cmake. Older CMake tolerated the duplicate
+    # output silently; CMake 3.27+ (Ubuntu 24.04) makes it a hard configure-time error, so
+    # the redundant explicit registration is removed here.
+    sed -i "/^if(NOT WIN32)$/,/^endif()$/d" stella_vslam_ros/CMakeLists.txt && \
+    # cv_bridge dropped its C-style cv_bridge.h header in favor of cv_bridge.hpp; stella_vslam_ros's
+    # ros2 branch still includes the old header.
+    sed -i "s|<cv_bridge/cv_bridge.h>|<cv_bridge/cv_bridge.hpp>|" stella_vslam_ros/src/stella_vslam_ros.h && \
     cd /home/${USERNAME}/stella && \
     rosdep install -y -i --from-paths /home/${USERNAME}/stella/src --skip-keys=stella_vslam && \
     colcon build && \

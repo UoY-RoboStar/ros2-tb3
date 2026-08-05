@@ -6,7 +6,7 @@
     // top of this. If you're actively editing the Dockerfile itself, switch this back to
     // "build": { "dockerfile": "Dockerfile", "options": [ "--secret=type=env,id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN" ] }
     // locally so your changes take effect without waiting on a published image.
-    "image": "ghcr.io/uoy-robostar/ros2-tb3-univ:latest",
+    "image": "ghcr.io/uoy-robostar/ros2-jazzy-tb3:latest",
     "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind",
     "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
     // Destkop available via VNC on the browser or via VNC client
