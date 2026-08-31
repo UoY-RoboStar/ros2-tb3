@@ -324,15 +324,30 @@ RUN sudo apt update && sudo apt install -y libgsl28 libgsl-dev
 
 # Install ARGos3 ROS2 bridge (depends on ARGoS3 above). Like cartographer above, its
 # CMakeLists.txt predates this base image's CMake, which has dropped support for
-# cmake_minimum_required() versions below 3.5.
+# cmake_minimum_required() versions below 3.5. It also calls ament_target_dependencies()
+# without find_package()-ing ament_cmake_target_dependencies itself - harmless when ament_cmake
+# hard-depended on that package, but on lyrical ament_cmake only build_export_depends on it now,
+# so the macro is simply undefined unless something else already pulled it in. This is a private
+# repo we can't read or patch directly, so the missing find_package() is injected via
+# CMAKE_PROJECT_INCLUDE instead, which CMake includes right after the top-level project() call -
+# before any add_subdirectory() reaches the plugin CMakeLists.txt that actually needs the macro.
+RUN cat <<'EOF' | sudo tee /usr/local/share/ament_target_dependencies_compat.cmake > /dev/null
+find_package(ament_cmake_target_dependencies REQUIRED)
+EOF
+RUN sudo apt update && sudo apt install -y ros-${ROS_DISTRO}-ament-cmake-target-dependencies
 RUN --mount=type=secret,id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN \
     export OpenGL_GL_PREFERENCE=GLVND && \
     mkdir -p /home/${USERNAME}/bridge_ws/src && \
     git clone https://${GIT_AUTH_TOKEN}@github.com/UoY-RoboStar/argos3-ros2-bridge.git /home/${USERNAME}/bridge_ws/src/argos3-ros2-bridge && \
     cd /home/${USERNAME}/bridge_ws && \
     source /opt/ros/${ROS_DISTRO}/setup.bash && \
-    colcon build --packages-select argos3_ros2_bridge --cmake-args -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && \
-    colcon build --packages-select argos3_ros2_bridge --cmake-args -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DFIRST_TIME=Off && \
+    colcon build --packages-select argos3_ros2_bridge --cmake-args \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+        -DCMAKE_PROJECT_INCLUDE=/usr/local/share/ament_target_dependencies_compat.cmake && \
+    colcon build --packages-select argos3_ros2_bridge --cmake-args \
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+        -DCMAKE_PROJECT_INCLUDE=/usr/local/share/ament_target_dependencies_compat.cmake \
+        -DFIRST_TIME=Off && \
     echo "export ARGOS_PLUGIN_PATH=/home/${USERNAME}/argos3-examples:/home/${USERNAME}/bridge_ws/install/argos3_ros2_bridge/lib:\$ARGOS_PLUGIN_PATH" >> ~/.bashrc && \
     echo "export LD_LIBRARY_PATH=\$ARGOS_PLUGIN_PATH:\$LD_LIBRARY_PATH" >> ~/.bashrc && \
     echo "source /home/${USERNAME}/bridge_ws/install/local_setup.bash" >> ~/.bashrc
