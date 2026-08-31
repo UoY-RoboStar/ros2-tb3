@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1.10.0
 
-# osrf/ros:jazzy-desktop-full is amd64-only, so we build on the multi-arch
-# ros:jazzy-ros-base image (amd64 + arm64) and apt-install desktop/perception ourselves.
-FROM ros:jazzy-ros-base
+# osrf/ros:lyrical-desktop-full is amd64-only, so we build on the multi-arch
+# ros:lyrical-ros-base image (amd64 + arm64) and apt-install desktop/perception ourselves.
+FROM ros:lyrical-ros-base
 
 # Populated automatically by buildx (e.g. "amd64", "arm64")
 ARG TARGETARCH
@@ -37,38 +37,158 @@ RUN apt update && apt upgrade -y
 RUN apt install -y git psmisc wget acl software-properties-common lxterminal
 
 # Install the ROS desktop packages (rviz2, demos, perception, ...) that used to
-# come from the osrf/ros:jazzy-desktop-full base image. We deliberately install
-# ros-jazzy-desktop + ros-jazzy-perception rather than ros-jazzy-desktop-full: the
-# "-full" metapackage also pulls in ros-jazzy-simulation, which includes simulators
-# this project doesn't use (e.g. Webots bridges) - ros-jazzy-turtlebot3-gazebo below
+# come from the osrf/ros:lyrical-desktop-full base image. We deliberately install
+# ros-lyrical-desktop + ros-lyrical-perception rather than ros-lyrical-desktop-full: the
+# "-full" metapackage also pulls in ros-lyrical-simulation, which includes simulators
+# this project doesn't use (e.g. Webots bridges) - ros-lyrical-turtlebot3-gazebo below
 # already pulls in exactly the ros_gz/Gazebo Harmonic packages TurtleBot3 needs.
-RUN apt update && apt install -y ros-jazzy-desktop ros-jazzy-perception
+RUN apt update && apt install -y ros-lyrical-desktop ros-lyrical-perception
 
-# Add Open Robotics' Gazebo apt repo. ros-jazzy-turtlebot3-gazebo depends on the
+# Add Open Robotics' Gazebo apt repo. ros-lyrical-turtlebot3-gazebo depends on the
 # gz-harmonic system libraries, which are published on packages.osrfoundation.org,
 # not packages.ros.org - without this repo those dependencies fail to resolve.
 RUN apt install -y lsb-release wget gnupg && \
     wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg && \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
 
-# Install Turtlebot3
-RUN apt update && apt install -y ros-jazzy-dynamixel-sdk ros-jazzy-turtlebot3-msgs ros-jazzy-turtlebot3 ros-jazzy-turtlebot3-navigation2 ros-jazzy-turtlebot3-teleop
+# Install Turtlebot3. ros-lyrical-turtlebot3, -turtlebot3-navigation2 and -turtlebot3-teleop
+# aren't published on packages.ros.org yet (Lyrical is only a few months old as of this
+# writing) - checked against the actual apt Packages index, not just index.ros.org's
+# rosdistro-release status, which runs ahead of what the buildfarm has actually built.
+# turtlebot3_navigation2/_cartographer/_node in turn need nav2_bringup, cartographer_ros and
+# hls_lfcd_lds_driver, which are missing too - but everything else those three need (the rest
+# of the nav2 stack, cartographer_ros_msgs, etc.) is already published, so only these four
+# repos are built from source, into one workspace so colcon resolves the cross-package
+# dependencies together. ros-lyrical-dynamixel-sdk and ros-lyrical-turtlebot3-msgs are separate
+# repos that are already published, so those still come from apt. nav2_bringup's CMakeLists.txt
+# also does a hard find_package(navigation2) for the umbrella metapackage, but never uses
+# anything from it (nav2_bringup is just launch files/configs, no C++) - the package itself
+# would also drag in nav2-smac-planner, which isn't published either, so rather than build the
+# whole metapackage from source the unused find_package() call is just patched out.
+# hls_lfcd_lds_driver's find_package(Boost REQUIRED system) is patched the same way: Boost on
+# this base image (1.90) no longer ships boost_system as a separate compiled library (it's been
+# header-only for years), so requesting that CMake component fails outright. Its source also
+# still uses boost::asio::io_service, removed from Boost.Asio years ago in favour of the
+# API-compatible io_context - swapped in with a plain rename. turtlebot3_node's `main` branch
+# similarly hasn't caught up with the .h -> .hpp header renames that message_filters and tf2's
+# LinearMath classes went through (same move cv_bridge already made, see the stella_vslam_ros
+# patch below) - patched the same way, across the whole workspace in case anything else built
+# here hits the same two renames. It also calls message_filters::Subscriber's old two-argument
+# (node, topic) constructor, which current message_filters removed in favour of always requiring
+# an explicit QoS - patched to pass the queue_size already in scope at both call sites.
+# cartographer-project/cartographer itself is unmaintained (no real release since ~2021) and its
+# CMakeLists/Ceres usage no longer builds against current toolchains at all - ros2/cartographer
+# and ros2/cartographer_ros (the forks the ROS buildfarm actually releases jazzy/kilted from, see
+# https://github.com/ros2/cartographer) carry the fixes upstream never merged, so those are used
+# instead, on their `ros2` branch. Even that fork still uses the old unprefixed thread-safety-
+# analysis macro names (GUARDED_BY, LOCKS_EXCLUDED, ...) that Abseil used to alias for
+# compatibility; recent Abseil only defines the ABSL_-prefixed versions now. Rather than patch
+# macro names
+# across the whole cartographer source tree, force-include a small header (matching how Abseil
+# itself defines these as no-ops on non-Clang compilers, which is what GCC here is) ahead of
+# every translation unit in this workspace.
+RUN cat <<'EOF' > /usr/local/include/legacy_thread_annotations_compat.h
+#ifndef GUARDED_BY
+#define GUARDED_BY(x)
+#endif
+#ifndef PT_GUARDED_BY
+#define PT_GUARDED_BY(x)
+#endif
+#ifndef ACQUIRED_AFTER
+#define ACQUIRED_AFTER(...)
+#endif
+#ifndef ACQUIRED_BEFORE
+#define ACQUIRED_BEFORE(...)
+#endif
+#ifndef EXCLUSIVE_LOCKS_REQUIRED
+#define EXCLUSIVE_LOCKS_REQUIRED(...)
+#endif
+#ifndef SHARED_LOCKS_REQUIRED
+#define SHARED_LOCKS_REQUIRED(...)
+#endif
+#ifndef LOCKS_EXCLUDED
+#define LOCKS_EXCLUDED(...)
+#endif
+#ifndef LOCK_RETURNED
+#define LOCK_RETURNED(x)
+#endif
+#ifndef LOCKABLE
+#define LOCKABLE
+#endif
+#ifndef SCOPED_LOCKABLE
+#define SCOPED_LOCKABLE
+#endif
+#ifndef EXCLUSIVE_LOCK_FUNCTION
+#define EXCLUSIVE_LOCK_FUNCTION(...)
+#endif
+#ifndef SHARED_LOCK_FUNCTION
+#define SHARED_LOCK_FUNCTION(...)
+#endif
+#ifndef UNLOCK_FUNCTION
+#define UNLOCK_FUNCTION(...)
+#endif
+#ifndef EXCLUSIVE_TRYLOCK_FUNCTION
+#define EXCLUSIVE_TRYLOCK_FUNCTION(...)
+#endif
+#ifndef SHARED_TRYLOCK_FUNCTION
+#define SHARED_TRYLOCK_FUNCTION(...)
+#endif
+#ifndef ASSERT_EXCLUSIVE_LOCK
+#define ASSERT_EXCLUSIVE_LOCK(...)
+#endif
+#ifndef ASSERT_SHARED_LOCK
+#define ASSERT_SHARED_LOCK(...)
+#endif
+#ifndef NO_THREAD_SAFETY_ANALYSIS
+#define NO_THREAD_SAFETY_ANALYSIS
+#endif
+EOF
+RUN apt update && apt install -y ros-lyrical-dynamixel-sdk ros-lyrical-turtlebot3-msgs
+RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
+    mkdir -p /home/${USERNAME}/tb3_ws/src && \
+    cd /home/${USERNAME}/tb3_ws/src && \
+    git clone -b main https://github.com/ROBOTIS-GIT/turtlebot3.git && \
+    git clone -b main https://github.com/ROBOTIS-GIT/hls_lfcd_lds_driver.git && \
+    sed -i "s/find_package(Boost REQUIRED system)/find_package(Boost REQUIRED)/" hls_lfcd_lds_driver/CMakeLists.txt && \
+    sed -i "s/io_service/io_context/g" \
+        hls_lfcd_lds_driver/include/hls_lfcd_lds_driver/lfcd_laser.hpp \
+        hls_lfcd_lds_driver/src/hlds_laser_publisher.cpp && \
+    git clone -b ros2 https://github.com/ros2/cartographer.git && \
+    git clone --no-checkout -b ros2 https://github.com/ros2/cartographer_ros.git cartographer_ros && \
+    (cd cartographer_ros && git sparse-checkout init --cone && git sparse-checkout set cartographer_ros && git checkout ros2) && \
+    git clone --no-checkout -b lyrical https://github.com/ros-navigation/navigation2.git navigation2 && \
+    (cd navigation2 && git sparse-checkout init --cone && git sparse-checkout set nav2_bringup && git checkout lyrical) && \
+    sed -i "/find_package(navigation2 REQUIRED)/d" navigation2/nav2_bringup/CMakeLists.txt && \
+    find . -type f \( -name '*.cpp' -o -name '*.hpp' -o -name '*.h' \) \
+        -exec sed -i -E 's#(message_filters/[A-Za-z_/]+|tf2/LinearMath/[A-Za-z_]+)\.h([>"])#\1.hpp\2#g' {} + && \
+    sed -i \
+        -e 's/"joint_states");/"joint_states", rclcpp::QoS(queue_size));/' \
+        -e 's/"imu");/"imu", rclcpp::QoS(queue_size));/' \
+        turtlebot3/turtlebot3_node/src/odometry.cpp && \
+    cd /home/${USERNAME}/tb3_ws && \
+    rosdep install -r --from-paths . --ignore-src --rosdistro ${ROS_DISTRO} -y --skip-keys=navigation2 && \
+    colcon build --cmake-args -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+        -DCMAKE_CXX_FLAGS=-include\ /usr/local/include/legacy_thread_annotations_compat.h \
+        --parallel-workers $(($(nproc) / 2)) && \
+    rm -rf build/ log/ src/*/.git && \
+    chown -R ${USER_UID}:${USER_GID} /home/${USERNAME}/tb3_ws && \
+    echo "source /home/${USERNAME}/tb3_ws/install/setup.bash" >> /home/${USERNAME}/.bashrc
 
 # Install the Gazebo Harmonic/Turtlebot3 simulation integration from apt. Unlike Humble
 # (where these were amd64-only binaries, forcing a from-source build on every
-# architecture), ros-jazzy-turtlebot3-gazebo and ros-jazzy-gz-ros2-control are published
+# architecture), ros-lyrical-turtlebot3-gazebo and ros-lyrical-gz-ros2-control are published
 # for both amd64 and arm64, following
 # https://docs.robotis.com/docs/systems/turtlebot3/simulation/gazebo_simulation
-RUN apt update && apt install -y ros-jazzy-turtlebot3-gazebo ros-jazzy-gz-ros2-control
+RUN apt update && apt install -y ros-lyrical-turtlebot3-gazebo ros-lyrical-gz-ros2-control
 
 # Install rtabmap-ros
-RUN apt update && apt install -y ros-jazzy-rtabmap-ros
+RUN apt update && apt install -y ros-lyrical-rtabmap-ros
 
 # Install movit2
-RUN apt update && apt install -y ros-jazzy-moveit ros-jazzy-moveit-resources-panda-moveit-config
+RUN apt update && apt install -y ros-lyrical-moveit ros-lyrical-moveit-resources-panda-moveit-config
 
 # Install RMW CycloneDDS
-# RUN apt install -y ros-jazzy-rmw-cyclonedds-cpp
+# RUN apt install -y ros-lyrical-rmw-cyclonedds-cpp
 
 # Install useful Python3 packages
 RUN apt install -y python3-pip python3-rosdep python3-argcomplete python3-transforms3d
@@ -157,7 +277,10 @@ SHELL ["/bin/bash", "-c"]
 # templates.hpp) shadow the freshly-built source headers and cause a spurious
 # "'variables' was not declared" compile error in moveit_setup_app_plugins - regardless
 # of which moveit2 commit is checked out, so pinning moveit2 to a fixed SHA does not
-# help; the second apt remove is the actual fix.
+# help; the second apt remove is the actual fix. On lyrical that Kinova rosdep key isn't
+# published at all yet, so rosdep is also told to skip it outright rather than fail the build;
+# the double apt remove is left in place regardless, since it's still the real fix if apt ever
+# does pull the moveit binaries back in for some other reason.
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     mkdir -p /home/${USERNAME}/ws_moveit/src && \
     cd /home/${USERNAME}/ws_moveit/src && \
@@ -167,7 +290,8 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     vcs import --recursive < moveit2_tutorials/moveit2_tutorials.repos && \
     rm -rf ros2_kortex ros2_robotiq_gripper serial && \
     sudo apt remove ros-$ROS_DISTRO-moveit* -y && \
-    sudo apt update && rosdep install -r --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y && \
+    sudo apt update && rosdep install -r --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y \
+        --skip-keys=kinova_gen3_7dof_robotiq_2f_85_moveit_config && \
     sudo apt remove ros-$ROS_DISTRO-moveit* -y && \
     cd /home/${USERNAME}/ws_moveit/ && \
     colcon build --mixin release && \
@@ -194,8 +318,9 @@ RUN git clone https://github.com/ilpincy/argos3-examples.git /home/${USERNAME}/a
     cmake -DCMAKE_BUILD_TYPE=Release .. && \
     make
 
-# Install GSL libraries
-RUN sudo apt update && sudo apt install -y libgsl27 libgsl-dev
+# Install GSL libraries. Package name follows the GSL SONAME, which this base image's newer
+# Ubuntu ("resolute") has bumped to 28 (it was libgsl27 on jazzy's Ubuntu 24.04 base).
+RUN sudo apt update && sudo apt install -y libgsl28 libgsl-dev
 
 # Install ARGos3 ROS2 bridge (depends on ARGoS3 above)
 RUN --mount=type=secret,id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN \
