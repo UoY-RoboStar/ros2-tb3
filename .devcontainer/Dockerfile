@@ -322,15 +322,17 @@ RUN git clone https://github.com/ilpincy/argos3-examples.git /home/${USERNAME}/a
 # Ubuntu ("resolute") has bumped to 28 (it was libgsl27 on jazzy's Ubuntu 24.04 base).
 RUN sudo apt update && sudo apt install -y libgsl28 libgsl-dev
 
-# Install ARGos3 ROS2 bridge (depends on ARGoS3 above)
+# Install ARGos3 ROS2 bridge (depends on ARGoS3 above). Like cartographer above, its
+# CMakeLists.txt predates this base image's CMake, which has dropped support for
+# cmake_minimum_required() versions below 3.5.
 RUN --mount=type=secret,id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN \
     export OpenGL_GL_PREFERENCE=GLVND && \
     mkdir -p /home/${USERNAME}/bridge_ws/src && \
     git clone https://${GIT_AUTH_TOKEN}@github.com/UoY-RoboStar/argos3-ros2-bridge.git /home/${USERNAME}/bridge_ws/src/argos3-ros2-bridge && \
     cd /home/${USERNAME}/bridge_ws && \
     source /opt/ros/${ROS_DISTRO}/setup.bash && \
-    colcon build --packages-select argos3_ros2_bridge && \
-    colcon build --packages-select argos3_ros2_bridge --cmake-args -DFIRST_TIME=Off && \
+    colcon build --packages-select argos3_ros2_bridge --cmake-args -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && \
+    colcon build --packages-select argos3_ros2_bridge --cmake-args -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DFIRST_TIME=Off && \
     echo "export ARGOS_PLUGIN_PATH=/home/${USERNAME}/argos3-examples:/home/${USERNAME}/bridge_ws/install/argos3_ros2_bridge/lib:\$ARGOS_PLUGIN_PATH" >> ~/.bashrc && \
     echo "export LD_LIBRARY_PATH=\$ARGOS_PLUGIN_PATH:\$LD_LIBRARY_PATH" >> ~/.bashrc && \
     echo "source /home/${USERNAME}/bridge_ws/install/local_setup.bash" >> ~/.bashrc
@@ -352,7 +354,10 @@ USER $USERNAME
 # Install pangolin dependencies and other required packages
 RUN sudo apt update && sudo apt install -y libglew-dev ffmpeg unzip
 
-# Pangolin
+# Pangolin. Pinned to an old commit that already needs the two source patches below, so - like
+# cartographer and argos3_ros2_bridge above - -DCMAKE_POLICY_VERSION_MINIMUM=3.5 is added here
+# and to the Iridescence/Stella VSLAM builds below pre-emptively rather than one CI round-trip
+# at a time; it's a no-op for any CMakeLists.txt that's already compliant.
 RUN cd /home/${USERNAME}/ && \
     git clone https://github.com/stevenlovegrove/Pangolin.git && \
     cd Pangolin && \  
@@ -363,6 +368,7 @@ RUN cd /home/${USERNAME}/ && \
     cd build && \
     cmake \
     -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
     -DBUILD_EXAMPLES=OFF \
     -DBUILD_PANGOLIN_DEPTHSENSE=OFF \
     -DBUILD_PANGOLIN_FFMPEG=OFF \
@@ -399,7 +405,7 @@ RUN sudo apt update && sudo apt install -y libglm-dev libglfw3-dev libpng-dev li
     git checkout 085322e0c949f75b67d24d361784e85ad7f197ab && \
     git submodule update --init --recursive && \
     mkdir -p build && cd build && \
-    cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo .. && \
+    cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .. && \
     make -j"$(($(nproc)/2))" && \
     sudo make install && \
     rm -rf /home/${USERNAME}/iridescence
@@ -414,7 +420,7 @@ RUN mkdir -p /home/${USERNAME}/lib && \
     mkdir -p /home/${USERNAME}/lib/stella_vslam/build && \
     cd /home/${USERNAME}/lib/stella_vslam/build && \
     source /opt/ros/${ROS_DISTRO}/setup.bash && \
-    cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo .. && \
+    cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .. && \
     make -j"$(($(nproc)/2))" && \
     sudo make install && \
     rm -rf /home/${USERNAME}/lib/stella_vslam
@@ -435,7 +441,7 @@ RUN mkdir -p /home/${USERNAME}/stella/src && \
     sed -i "s|<cv_bridge/cv_bridge.h>|<cv_bridge/cv_bridge.hpp>|" stella_vslam_ros/src/stella_vslam_ros.h && \
     cd /home/${USERNAME}/stella && \
     rosdep install -y -i --from-paths /home/${USERNAME}/stella/src --skip-keys=stella_vslam && \
-    colcon build && \
+    colcon build --cmake-args -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && \
     rm -rf build/ log/ src/
 
 RUN mkdir -p /home/${USERNAME}/stella/vocab && \
