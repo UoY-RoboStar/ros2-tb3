@@ -442,7 +442,35 @@ RUN mkdir -p /home/${USERNAME}/lib && \
     sudo make install && \
     rm -rf /home/${USERNAME}/lib/stella_vslam
 
-# Stella vslam ROS
+# Stella vslam ROS. Its src/CMakeLists.txt also calls the now-fully-removed
+# ament_target_dependencies() (see the ARGoS3 bridge notes above) - but with a long, varied
+# 14-package dependency list (rclcpp, cv_bridge, tf2_eigen, rosbag2_cpp, ...) where hand-picking
+# each one's modern CMake target name is more error-prone than just re-implementing the macro's
+# own PUBLIC/PRIVATE-aware INCLUDE_DIRS/LIBRARIES/DEFINITIONS + _TARGETS fallback behaviour, so
+# that's what's included here instead of a direct target_link_libraries rewrite.
+RUN cat <<'EOF' | sudo tee /usr/local/share/ament_target_dependencies_compat.cmake > /dev/null
+if(NOT COMMAND ament_target_dependencies)
+  macro(ament_target_dependencies target)
+    set(_atd_deps ${ARGN})
+    list(REMOVE_ITEM _atd_deps "PUBLIC" "PRIVATE" "INTERFACE")
+    foreach(_atd_dep ${_atd_deps})
+      if(DEFINED ${_atd_dep}_TARGETS)
+        target_link_libraries(${target} ${${_atd_dep}_TARGETS})
+      else()
+        if(DEFINED ${_atd_dep}_INCLUDE_DIRS)
+          target_include_directories(${target} PUBLIC ${${_atd_dep}_INCLUDE_DIRS})
+        endif()
+        if(DEFINED ${_atd_dep}_LIBRARIES)
+          target_link_libraries(${target} ${${_atd_dep}_LIBRARIES})
+        endif()
+        if(DEFINED ${_atd_dep}_DEFINITIONS)
+          target_compile_definitions(${target} PUBLIC ${${_atd_dep}_DEFINITIONS})
+        endif()
+      endif()
+    endforeach()
+  endmacro()
+endif()
+EOF
 RUN mkdir -p /home/${USERNAME}/stella/src && \
     source /opt/ros/${ROS_DISTRO}/setup.bash && \
     cd /home/${USERNAME}/stella/src && \
@@ -456,6 +484,8 @@ RUN mkdir -p /home/${USERNAME}/stella/src && \
     # cv_bridge dropped its C-style cv_bridge.h header in favor of cv_bridge.hpp; stella_vslam_ros's
     # ros2 branch still includes the old header.
     sed -i "s|<cv_bridge/cv_bridge.h>|<cv_bridge/cv_bridge.hpp>|" stella_vslam_ros/src/stella_vslam_ros.h && \
+    sed -i '/ament_target_dependencies(/i include(/usr/local/share/ament_target_dependencies_compat.cmake)' \
+        stella_vslam_ros/src/CMakeLists.txt && \
     cd /home/${USERNAME}/stella && \
     rosdep install -y -i --from-paths /home/${USERNAME}/stella/src --skip-keys=stella_vslam && \
     colcon build --cmake-args -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && \
