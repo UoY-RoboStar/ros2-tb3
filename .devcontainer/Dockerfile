@@ -444,21 +444,14 @@ RUN mkdir -p /home/${USERNAME}/lib && \
 
 # Stella vslam ROS, from the UoY-RoboStar fork's `lyrical` branch - upstream's CMakeLists.txt
 # (both the root one and src/CMakeLists.txt) call the now-fully-removed ament_target_dependencies()
-# (see the ARGoS3 bridge notes above), fixed upstream on this branch with a compatible replacement
-# macro rather than hand-translating the long, varied dependency lists to modern CMake targets.
+# (see the ARGoS3 bridge notes above), and stella_vslam_ros.h uses the pre-rename message_filters
+# and cv_bridge headers (see the message_filters/tf2 notes above) - both fixed upstream on this
+# branch, along with a redundant explicit ament_environment_hooks(LIBRARY_PATH) registration that
+# current CMake turns into a hard configure-time error.
 RUN mkdir -p /home/${USERNAME}/stella/src && \
     source /opt/ros/${ROS_DISTRO}/setup.bash && \
     cd /home/${USERNAME}/stella/src && \
     git clone --recursive -b lyrical --depth 1 https://github.com/UoY-RoboStar/stella_vslam_ros.git && \
-    # stella_vslam_ros's CMakeLists.txt explicitly registers a "library_path" environment
-    # hook, which duplicates the one ament_export_targets(... HAS_LIBRARY_TARGET) already
-    # registers automatically in current ament_cmake. Older CMake tolerated the duplicate
-    # output silently; CMake 3.27+ (Ubuntu 24.04) makes it a hard configure-time error, so
-    # the redundant explicit registration is removed here.
-    sed -i "/^if(NOT WIN32)$/,/^endif()$/d" stella_vslam_ros/CMakeLists.txt && \
-    # cv_bridge dropped its C-style cv_bridge.h header in favor of cv_bridge.hpp; stella_vslam_ros's
-    # ros2 branch still includes the old header.
-    sed -i "s|<cv_bridge/cv_bridge.h>|<cv_bridge/cv_bridge.hpp>|" stella_vslam_ros/src/stella_vslam_ros.h && \
     cd /home/${USERNAME}/stella && \
     rosdep install -y -i --from-paths /home/${USERNAME}/stella/src --skip-keys=stella_vslam && \
     colcon build --cmake-args -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && \
