@@ -322,24 +322,15 @@ RUN git clone https://github.com/ilpincy/argos3-examples.git /home/${USERNAME}/a
 # Ubuntu ("resolute") has bumped to 28 (it was libgsl27 on jazzy's Ubuntu 24.04 base).
 RUN sudo apt update && sudo apt install -y libgsl28 libgsl-dev
 
-# Install ARGos3 ROS2 bridge (depends on ARGoS3 above). Like cartographer above, its
+# Install ARGos3 ROS2 bridge (depends on ARGoS3 above), from the `lyrical` branch - main's
 # CMakeLists.txt predates this base image's CMake, which has dropped support for
-# cmake_minimum_required() versions below 3.5. plugins/bridge/CMakeLists.txt also calls
-# ament_target_dependencies() without find_package()-ing ament_cmake_target_dependencies itself -
-# harmless when ament_cmake hard-depended on that package, but on lyrical ament_cmake only
-# build_export_depends on it now, so the macro is simply undefined unless something else already
-# pulled it in. This is a private repo we can't read directly, but the CI error output already
-# names the exact file (plugins/bridge/CMakeLists.txt) and macro call where it's undefined, so
-# the missing find_package() is sed-inserted right before that call. A CMAKE_PROJECT_INCLUDE
-# tried first here did not take effect (unclear why; possibly ordering relative to the package's
-# own ament_cmake setup), so this direct insert replaces it.
-RUN sudo apt update && sudo apt install -y ros-${ROS_DISTRO}-ament-cmake-target-dependencies
+# cmake_minimum_required() versions below 3.5, and plugins/bridge/CMakeLists.txt called the
+# ament_target_dependencies() macro, which current ament_cmake no longer provides at all (fixed
+# upstream on this branch by linking the modern CMake targets directly instead).
 RUN --mount=type=secret,id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN \
     export OpenGL_GL_PREFERENCE=GLVND && \
     mkdir -p /home/${USERNAME}/bridge_ws/src && \
-    git clone https://${GIT_AUTH_TOKEN}@github.com/UoY-RoboStar/argos3-ros2-bridge.git /home/${USERNAME}/bridge_ws/src/argos3-ros2-bridge && \
-    sed -i '/ament_target_dependencies(/i find_package(ament_cmake_target_dependencies REQUIRED)' \
-        /home/${USERNAME}/bridge_ws/src/argos3-ros2-bridge/plugins/bridge/CMakeLists.txt && \
+    git clone -b lyrical https://${GIT_AUTH_TOKEN}@github.com/UoY-RoboStar/argos3-ros2-bridge.git /home/${USERNAME}/bridge_ws/src/argos3-ros2-bridge && \
     cd /home/${USERNAME}/bridge_ws && \
     source /opt/ros/${ROS_DISTRO}/setup.bash && \
     colcon build --packages-select argos3_ros2_bridge --cmake-args -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && \
