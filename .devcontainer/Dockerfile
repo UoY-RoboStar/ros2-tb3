@@ -359,13 +359,21 @@ RUN sudo apt update && sudo apt install -y libglew-dev ffmpeg unzip
 # Pangolin. Pinned to an old commit that already needs the two source patches below, so - like
 # cartographer and argos3_ros2_bridge above - -DCMAKE_POLICY_VERSION_MINIMUM=3.5 is added here
 # and to the Iridescence/Stella VSLAM builds below pre-emptively rather than one CI round-trip
-# at a time; it's a no-op for any CMakeLists.txt that's already compliant.
+# at a time; it's a no-op for any CMakeLists.txt that's already compliant. Same reasoning for the
+# missing <cstdint> include below: only image_io_packed12bit.cpp hit it in CI (this old snapshot
+# relies on the header coming in transitively, which current libstdc++ no longer guarantees), but
+# scanning the tree found dozens of other files with the same latent gap - most are disabled by
+# the BUILD_PANGOLIN_*=OFF flags below and would never actually surface it, but fixing every file
+# that uses a fixed-width int type without including it directly is a no-op for the excluded ones
+# and avoids finding the rest one CI run at a time.
 RUN cd /home/${USERNAME}/ && \
     git clone https://github.com/stevenlovegrove/Pangolin.git && \
-    cd Pangolin && \  
+    cd Pangolin && \
     git checkout ad8b5f83 && \
     sed -i -e "193,198d" ./src/utils/file_utils.cpp && \
-    sed -i -e "1i #include <cstdint>" ./include/pangolin/log/packetstream_tags.h && \
+    grep -rlE '\b(u?int(8|16|32|64)_t)\b' --include='*.cpp' --include='*.h' --include='*.hpp' src include | \
+        xargs grep -L -E '#include[[:space:]]*[<"](cstdint|stdint\.h)[>"]' | \
+        xargs -r sed -i '1i #include <cstdint>' && \
     mkdir -p build && \
     cd build && \
     cmake \
