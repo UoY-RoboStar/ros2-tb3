@@ -407,12 +407,19 @@ RUN cd /home/${USERNAME}/ && \
     sudo make install && \
     cd / && rm -rf Pangolin
 
-# Iridescence
+# Iridescence. src/guik/viewer/info_window.cpp uses Boost.Process's classic API
+# (boost::process::ipstream/child/std_out), which Boost 1.87+ moved behind an explicit
+# boost::process::v1:: namespace as part of the v2 redesign (no macro opt-in exists to keep the
+# unqualified names) - patched to include the v1 header and qualify every boost::process:: use.
 RUN sudo apt update && sudo apt install -y libglm-dev libglfw3-dev libpng-dev libjpeg-dev libeigen3-dev libboost-filesystem-dev libboost-program-options-dev && \
     cd /home/${USERNAME}/ && \
     git clone https://github.com/koide3/iridescence.git && \
     cd iridescence && \
     git checkout 085322e0c949f75b67d24d361784e85ad7f197ab && \
+    sed -i \
+        -e '/#include <boost\/process.hpp>/a #include <boost/process/v1.hpp>' \
+        -e 's/boost::process::/boost::process::v1::/g' \
+        src/guik/viewer/info_window.cpp && \
     git submodule update --init --recursive && \
     mkdir -p build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .. && \
