@@ -80,7 +80,15 @@ RUN apt install -y lsb-release wget gnupg && \
 # CMakeLists/Ceres usage no longer builds against current toolchains at all - ros2/cartographer
 # and ros2/cartographer_ros (the forks the ROS buildfarm actually releases jazzy/kilted from, see
 # https://github.com/ros2/cartographer) carry the fixes upstream never merged, so those are used
-# instead, on their `ros2` branch. Even that fork still uses the old unprefixed thread-safety-
+# instead, on their `ros2` branch. cartographer_ros itself comes from the UoY-RoboStar fork's
+# `lyrical` branch instead: node_main.cpp and offline_node.cpp both DEFINE_bool a gflag named
+# collect_metrics, and since offline_node.cpp compiled into the shared library cartographer_node
+# also links against, cartographer_node ended up with the same gflag defined twice in one process
+# and aborted at startup - fixed upstream on this branch by compiling offline_node.cpp directly
+# into cartographer_offline_node instead of the shared library (matching
+# https://github.com/ros2/cartographer_ros/pull/84, open against
+# https://github.com/ros2/cartographer_ros/issues/80 but not yet merged). Even that fork still
+# uses the old unprefixed thread-safety-
 # analysis macro names (GUARDED_BY, LOCKS_EXCLUDED, ...) that Abseil used to alias for
 # compatibility; recent Abseil only defines the ABSL_-prefixed versions now. Rather than patch
 # macro names
@@ -154,8 +162,8 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
         hls_lfcd_lds_driver/include/hls_lfcd_lds_driver/lfcd_laser.hpp \
         hls_lfcd_lds_driver/src/hlds_laser_publisher.cpp && \
     git clone -b ros2 https://github.com/ros2/cartographer.git && \
-    git clone --no-checkout -b ros2 https://github.com/ros2/cartographer_ros.git cartographer_ros && \
-    (cd cartographer_ros && git sparse-checkout init --cone && git sparse-checkout set cartographer_ros && git checkout ros2) && \
+    git clone --no-checkout -b lyrical https://github.com/UoY-RoboStar/cartographer_ros.git cartographer_ros && \
+    (cd cartographer_ros && git sparse-checkout init --cone && git sparse-checkout set cartographer_ros && git checkout lyrical) && \
     git clone --no-checkout -b lyrical https://github.com/ros-navigation/navigation2.git navigation2 && \
     (cd navigation2 && git sparse-checkout init --cone && git sparse-checkout set nav2_bringup && git checkout lyrical) && \
     sed -i "/find_package(navigation2 REQUIRED)/d" navigation2/nav2_bringup/CMakeLists.txt && \
