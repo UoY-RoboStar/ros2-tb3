@@ -152,6 +152,48 @@ RUN cat <<'EOF' > /usr/local/include/legacy_thread_annotations_compat.h
 #endif
 EOF
 RUN apt update && apt install -y ros-lyrical-dynamixel-sdk ros-lyrical-turtlebot3-msgs
+# nav2_bringup's package.xml only exec_depends on the "navigation2" umbrella metapackage (see
+# --skip-keys=navigation2 below) rather than on the individual nav2-* packages it actually needs
+# at runtime (nav2_bt_navigator, nav2_controller, nav2_planner, ...) - those were never getting
+# installed, since they were only ever pulled in transitively through that umbrella. Installed
+# explicitly here instead, checked directly against the umbrella's own exec_depend list. Every
+# entry in that list is published for lyrical except nav2-smac-planner, which is left out; the
+# other planner plugins (navfn, theta-star, regulated-pure-pursuit, mppi) are all present.
+RUN apt update && apt install -y \
+        ros-lyrical-nav2-amcl \
+        ros-lyrical-nav2-behavior-tree \
+        ros-lyrical-nav2-behaviors \
+        ros-lyrical-nav2-bt-navigator \
+        ros-lyrical-nav2-collision-monitor \
+        ros-lyrical-nav2-constrained-smoother \
+        ros-lyrical-nav2-controller \
+        ros-lyrical-nav2-core \
+        ros-lyrical-nav2-costmap-2d \
+        ros-lyrical-nav2-dwb-controller \
+        ros-lyrical-nav2-graceful-controller \
+        ros-lyrical-nav2-lifecycle-manager \
+        ros-lyrical-nav2-loopback-sim \
+        ros-lyrical-nav2-map-server \
+        ros-lyrical-nav2-mppi-controller \
+        ros-lyrical-nav2-msgs \
+        ros-lyrical-nav2-navfn-planner \
+        ros-lyrical-nav2-planner \
+        ros-lyrical-nav2-regulated-pure-pursuit-controller \
+        ros-lyrical-nav2-ros-common \
+        ros-lyrical-nav2-rotation-shim-controller \
+        ros-lyrical-nav2-route \
+        ros-lyrical-nav2-rviz-plugins \
+        ros-lyrical-nav2-simple-commander \
+        ros-lyrical-nav2-smoother \
+        ros-lyrical-nav2-theta-star-planner \
+        ros-lyrical-nav2-util \
+        ros-lyrical-nav2-velocity-smoother \
+        ros-lyrical-nav2-voxel-grid \
+        ros-lyrical-nav2-waypoint-follower \
+        ros-lyrical-opennav-docking \
+        ros-lyrical-opennav-docking-bt \
+        ros-lyrical-opennav-docking-core \
+        ros-lyrical-opennav-following
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     mkdir -p /home/${USERNAME}/tb3_ws/src && \
     cd /home/${USERNAME}/tb3_ws/src && \
