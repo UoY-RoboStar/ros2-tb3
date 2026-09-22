@@ -23,8 +23,10 @@ SHELL ["/bin/bash", "-c"]
 ARG USERNAME=ubuntu
 ENV HOME=/home/${USERNAME}
 
-# Install alsa-utils so we can setup null plugin
-RUN apt install -y alsa-utils
+# Install alsa-utils so we can setup null plugin. apt update is needed here since removing
+# the old non-root-user/sudo setup also removed the apt-get update that used to run as a
+# side effect of installing the sudo package before this step.
+RUN apt update && apt install -y alsa-utils
 RUN echo 'pcm.!default { type null }' >> /etc/asound.conf
 
 # Update all packages
