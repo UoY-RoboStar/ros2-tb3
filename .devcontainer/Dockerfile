@@ -42,6 +42,13 @@ RUN apt install -y git psmisc wget acl software-properties-common lxterminal
 # treats that mismatch as "dubious ownership" and refuses every command.
 RUN git config --system --add safe.directory '*'
 
+# rosdep's cache lives under $HOME/.ros/rosdep, and the base image already ships one
+# pre-populated under /root (its own build ran as root with the default HOME) - but since
+# HOME is now /home/${USERNAME} instead, every rosdep install below would otherwise hit
+# "your rosdep installation has not been initialized yet" the first time it's used (in the
+# tb3_ws build just below), so the cache needs rebuilding under the new HOME first.
+RUN rosdep update
+
 # Install the ROS desktop packages (rviz2, demos, perception, ...) that used to
 # come from the osrf/ros:lyrical-desktop-full base image. We deliberately install
 # ros-lyrical-desktop + ros-lyrical-perception rather than ros-lyrical-desktop-full: the
@@ -262,9 +269,6 @@ RUN mkdir -p /home/$USERNAME/.fluxbox/styles
 COPY fluxbox/init /home/$USERNAME/.fluxbox/init
 COPY fluxbox/menu /home/$USERNAME/.fluxbox/menu
 COPY fluxbox/qnx-photon-mod /home/$USERNAME/.fluxbox/styles/qnx-photon-mod
-
-# Rosdep update
-RUN rosdep update
 
 # Ignore warning for colcon builds
 RUN echo 'export PYTHONWARNINGS=ignore:::setuptools.command.install,ignore:::setuptools.command.easy_install,ignore:::pkg_resources' >> ~/.bashrc
