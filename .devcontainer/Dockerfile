@@ -23,6 +23,34 @@ SHELL ["/bin/bash", "-c"]
 ARG USERNAME=ubuntu
 ENV HOME=/home/${USERNAME}
 
+# Pin the Ubuntu and ROS apt repositories to a fixed, known-good snapshot instead of floating
+# on whatever is currently live. Ubuntu 26.04 ("resolute") is only a few months old and its
+# package set - including Boost, which several packages built from source further down this
+# file link against - is still changing meaningfully within days, not months. Building this
+# same Dockerfile on different days was landing on different, occasionally mutually
+# inconsistent combinations of Boost/MoveIt/other packages, breaking the MoveIt build (see the
+# moveit2/moveit_visual_tools pins below) in different, unrelated ways each time. Both
+# Canonical (snapshot.ubuntu.com) and the ROS project (snapshots.ros.org) publish timestamped,
+# immutable mirrors for exactly this purpose - packages.osrfoundation.org (Gazebo, added
+# further down) has no equivalent, so that one repository is left floating. The ROS snapshot
+# service signs its Release files with a separate "ROS Snapshot builder" key rather than the
+# live repo's key already baked into the base image, so that key is fetched explicitly below.
+# The chosen dates aren't arbitrary: 2026-08-19 was the ROS snapshot actually in effect on
+# 2026-09-03, the last date this Dockerfile is known to have built successfully end-to-end,
+# and 2026-09-10T12:00:00Z is the closest Ubuntu snapshot after that found not to have an
+# internal package-version inconsistency (the exact midnight of 2026-09-03 did have one, in
+# unrelated libcurl packages).
+RUN apt-get update -qq && apt-get install -y -qq gnupg curl perl && \
+    curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xAD19BAB3CBF125EA" | \
+        gpg --dearmor -o /usr/share/keyrings/ros-snapshot-archive-keyring.gpg && \
+    sed -i "s#http://packages.ros.org/ros2/ubuntu#http://snapshots.ros.org/lyrical/2026-08-19/ubuntu#" \
+        /etc/apt/sources.list.d/ros2.sources && \
+    sed -i "s/Types: deb deb-src/Types: deb/" /etc/apt/sources.list.d/ros2.sources && \
+    perl -0777 -pi -e "s/Signed-By:.*?-----END PGP PUBLIC KEY BLOCK-----\n/Signed-By: \/usr\/share\/keyrings\/ros-snapshot-archive-keyring.gpg\n/s" \
+        /etc/apt/sources.list.d/ros2.sources && \
+    sed -i -E "s#https?://(ports\.ubuntu\.com/ubuntu-ports|archive\.ubuntu\.com/ubuntu|security\.ubuntu\.com/ubuntu)/#https://snapshot.ubuntu.com/ubuntu/20260910T120000Z/#g" \
+        /etc/apt/sources.list.d/ubuntu.sources
+
 # Install alsa-utils so we can setup null plugin. apt update is needed here since removing
 # the old non-root-user/sudo setup also removed the apt-get update that used to run as a
 # side effect of installing the sudo package before this step.
@@ -338,15 +366,21 @@ SHELL ["/bin/bash", "-c"]
 # the double apt remove is left in place regardless, since it's still the real fix if apt ever
 # does pull the moveit binaries back in for some other reason.
 #
-# moveit2_tutorials and moveit_visual_tools (the latter pulled in by the former's .repos
-# file from its own floating `ros2` branch, so pinning moveit2_tutorials alone doesn't
-# cover it) are both pinned to whatever their respective branch heads were as of the last
-# known-good build of this Dockerfile (2026-09-03) - a later moveit_visual_tools revision
-# started failing to link against this base image's current Boost.Filesystem
-# (undefined reference to boost::filesystem::detail::status/create_directories), which
-# looks like a Boost ABI mismatch. If that turns out to be caused by the Ubuntu apt
-# repo's Boost package version moving on rather than by moveit_visual_tools' own source,
-# this pin alone won't be enough and the actual Boost version will need investigating.
+# moveit2_tutorials.repos vcs-imports moveit2, moveit_msgs, moveit_resources,
+# moveit_task_constructor, moveit_visual_tools and rviz_visual_tools, several from floating
+# branches (moveit2 itself from `main`) - so pinning moveit2_tutorials' own commit doesn't
+# pin any of them. All of these except moveit_task_constructor/rviz_visual_tools are pinned
+# below to whatever their respective branch heads were as of the last known-good build of
+# this Dockerfile (2026-09-03), after tracking down a build failure to moveit_visual_tools
+# failing to link against Boost.Filesystem (undefined reference to
+# boost::filesystem::detail::status/create_directories). That turned out not to be caused by
+# apt package drift (reproduced identically against apt sources pinned to a consistent
+# snapshot, see the apt pinning above) but by moveit2 core itself: its main branch had moved
+# on since 2026-09-03 with a "Cleanup boost dependencies" change that stopped exporting a
+# Boost::filesystem link dependency moveit_visual_tools was relying on transitively - building
+# moveit_core from source (rather than installing it from apt, see the Kinova rosdep note
+# above for why) means anything else built from source against it inherits whatever that
+# commit happens to export.
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     mkdir -p /home/${USERNAME}/ws_moveit/src && \
     cd /home/${USERNAME}/ws_moveit/src && \
@@ -356,6 +390,9 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     git -C moveit2_tutorials checkout 67b6bd4bd1e133de4130b0da3e1893643d5be1bf && \
     vcs import --recursive < moveit2_tutorials/moveit2_tutorials.repos && \
     git -C moveit_visual_tools checkout e5681a71c63c8a5610da7ca7964ce2fab751ea6e && \
+    git -C moveit2 checkout 797bdeff95c75158bc3b969330456d131dcf27c1 && \
+    git -C moveit_resources checkout c55b102711fc0aebe80c6952d2ce97c38110abba && \
+    git -C moveit_msgs checkout 15daf790c8008665f1e577755562f14b43bbd410 && \
     rm -rf ros2_kortex ros2_robotiq_gripper serial && \
     apt remove ros-$ROS_DISTRO-moveit* -y && \
     apt update && rosdep install -r --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y \
