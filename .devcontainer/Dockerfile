@@ -343,10 +343,11 @@ SHELL ["/bin/bash", "-c"]
 #     echo "source /home/${USERNAME}/ws_moveit/install/setup.bash" >> ~/.bashrc
 
 # Install moveit2 from source, including tutorials.
-# ros2_kortex/ros2_robotiq_gripper/serial are pulled in by moveit2_tutorials.repos for an
-# unrelated Kinova-arm demo (quickstart_in_rviz, the first RViz tutorial, defaults to the
-# Kinova Gen3 rather than the Panda robot). kortex_api (part of ros2_kortex) vendors a
-# prebuilt SDK via CMake FetchContent, and its CMakeLists.txt - both here and in
+# ros2_kortex/ros2_robotiq_gripper/serial are cloned explicitly below (see the note further
+# down - they're no longer pulled in by moveit2_tutorials.repos itself at the pinned commit
+# used here) for an unrelated Kinova-arm demo (quickstart_in_rviz, the first RViz tutorial,
+# defaults to the Kinova Gen3 rather than the Panda robot). kortex_api (part of ros2_kortex)
+# vendors a prebuilt SDK via CMake FetchContent, and its CMakeLists.txt - both here and in
 # kortex_driver, which vendors the same SDK a second time for the compiled .a library -
 # has two real bugs, not just a deliberate x86_64-only restriction as its own comments
 # claim: it only ever declares an x86_64 download URL, and separately, it reads
@@ -397,8 +398,19 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     git -C moveit_visual_tools checkout e5681a71c63c8a5610da7ca7964ce2fab751ea6e && \
     git -C moveit2 checkout 797bdeff95c75158bc3b969330456d131dcf27c1 && \
     git -C moveit_resources checkout c55b102711fc0aebe80c6952d2ce97c38110abba && \
-    git -C moveit_msgs checkout 15daf790c8008665f1e577755562f14b43bbd410
+    git -C moveit_msgs checkout 15daf790c8008665f1e577755562f14b43bbd410 && \
+    git clone --depth 1 -b main https://github.com/Kinovarobotics/ros2_kortex.git && \
+    git clone --depth 1 -b main https://github.com/PickNikRobotics/ros2_robotiq_gripper.git && \
+    git clone --depth 1 -b ros2 https://github.com/tylerjw/serial.git
 
+# ros2_kortex/ros2_robotiq_gripper/serial used to be pulled in by moveit2_tutorials.repos
+# itself (per the tutorials' own upstream.repos, they're a temporary source stand-in "until
+# rolling binaries are available" for an unrelated Kinova-arm demo - quickstart_in_rviz, the
+# first RViz tutorial, defaults to the Kinova Gen3 rather than the Panda robot) - but by the
+# pinned moveit2_tutorials commit above, upstream had already dropped them from that .repos
+# file, so they're cloned explicitly here instead, matching the branches moveit2_tutorials'
+# own CI (.github/upstream.repos) still uses.
+#
 # kortex_api's and kortex_driver's CMakeLists.txt each vendor the same Kinova SDK via CMake
 # FetchContent, and each has the same two real bugs: they only ever declare an x86_64
 # download URL, and separately, they read CMAKE_SYSTEM_PROCESSOR *before* calling project() -
