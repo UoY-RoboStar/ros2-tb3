@@ -337,13 +337,25 @@ SHELL ["/bin/bash", "-c"]
 # published at all yet, so rosdep is also told to skip it outright rather than fail the build;
 # the double apt remove is left in place regardless, since it's still the real fix if apt ever
 # does pull the moveit binaries back in for some other reason.
+#
+# moveit2_tutorials and moveit_visual_tools (the latter pulled in by the former's .repos
+# file from its own floating `ros2` branch, so pinning moveit2_tutorials alone doesn't
+# cover it) are both pinned to whatever their respective branch heads were as of the last
+# known-good build of this Dockerfile (2026-09-03) - a later moveit_visual_tools revision
+# started failing to link against this base image's current Boost.Filesystem
+# (undefined reference to boost::filesystem::detail::status/create_directories), which
+# looks like a Boost ABI mismatch. If that turns out to be caused by the Ubuntu apt
+# repo's Boost package version moving on rather than by moveit_visual_tools' own source,
+# this pin alone won't be enough and the actual Boost version will need investigating.
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     mkdir -p /home/${USERNAME}/ws_moveit/src && \
     cd /home/${USERNAME}/ws_moveit/src && \
     colcon --log-base /dev/null mixin add default https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml && \
     colcon --log-base /dev/null mixin update default && \
     git clone -b main https://github.com/moveit/moveit2_tutorials && \
+    git -C moveit2_tutorials checkout 67b6bd4bd1e133de4130b0da3e1893643d5be1bf && \
     vcs import --recursive < moveit2_tutorials/moveit2_tutorials.repos && \
+    git -C moveit_visual_tools checkout e5681a71c63c8a5610da7ca7964ce2fab751ea6e && \
     rm -rf ros2_kortex ros2_robotiq_gripper serial && \
     apt remove ros-$ROS_DISTRO-moveit* -y && \
     apt update && rosdep install -r --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y \

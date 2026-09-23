@@ -6,7 +6,7 @@
     // top of this. If you're actively editing the Dockerfile itself, switch this back to
     // "build": { "dockerfile": "Dockerfile", "options": [ "--secret=type=env,id=GIT_AUTH_TOKEN,env=GIT_AUTH_TOKEN" ] }
     // locally so your changes take effect without waiting on a published image.
-    "image": "ghcr.io/uoy-robostar/ros2-lyrical-tb3:latest",
+    "image": "ghcr.io/uoy-robostar/ros2-lyrical-tb3-root:latest",
     // The image runs as root (see the Dockerfile), so this is just being explicit about
     // the user VS Code should already be defaulting to.
     "remoteUser": "root",
