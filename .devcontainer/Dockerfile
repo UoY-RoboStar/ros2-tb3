@@ -401,15 +401,20 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     git -C moveit_msgs checkout 15daf790c8008665f1e577755562f14b43bbd410 && \
     git clone --depth 1 -b main https://github.com/Kinovarobotics/ros2_kortex.git && \
     git clone --depth 1 -b main https://github.com/PickNikRobotics/ros2_robotiq_gripper.git && \
-    git clone --depth 1 -b ros2 https://github.com/tylerjw/serial.git
+    git clone --depth 1 -b ros2 https://github.com/tylerjw/serial.git && \
+    git clone --depth 1 -b main https://github.com/PickNikRobotics/picknik_controllers.git
 
-# ros2_kortex/ros2_robotiq_gripper/serial used to be pulled in by moveit2_tutorials.repos
-# itself (per the tutorials' own upstream.repos, they're a temporary source stand-in "until
-# rolling binaries are available" for an unrelated Kinova-arm demo - quickstart_in_rviz, the
-# first RViz tutorial, defaults to the Kinova Gen3 rather than the Panda robot) - but by the
-# pinned moveit2_tutorials commit above, upstream had already dropped them from that .repos
-# file, so they're cloned explicitly here instead, matching the branches moveit2_tutorials'
-# own CI (.github/upstream.repos) still uses.
+# ros2_kortex/ros2_robotiq_gripper/serial/picknik_controllers used to be pulled in by
+# moveit2_tutorials.repos itself (per the tutorials' own upstream.repos, they're a temporary
+# source stand-in "until rolling binaries are available" for an unrelated Kinova-arm demo -
+# quickstart_in_rviz, the first RViz tutorial, defaults to the Kinova Gen3 rather than the
+# Panda robot) - but by the pinned moveit2_tutorials commit above, upstream had already
+# dropped them from that .repos file, so they're cloned explicitly here instead, matching the
+# branches moveit2_tutorials' own CI (.github/upstream.repos) still uses. picknik_controllers
+# (picknik_reset_fault_controller/picknik_twist_controller, both robotiq_driver dependencies)
+# is registered in rosdistro for lyrical but doesn't actually resolve via apt yet, the same
+# way kinova_gen3_7dof_robotiq_2f_85_moveit_config didn't - building it from source instead
+# sidesteps that the same way.
 #
 # kortex_api's and kortex_driver's CMakeLists.txt each vendor the same Kinova SDK via CMake
 # FetchContent, and each has the same two real bugs: they only ever declare an x86_64
