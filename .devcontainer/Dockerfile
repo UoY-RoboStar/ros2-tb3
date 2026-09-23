@@ -343,25 +343,33 @@ SHELL ["/bin/bash", "-c"]
 #     echo "source /home/${USERNAME}/ws_moveit/install/setup.bash" >> ~/.bashrc
 
 # Install moveit2 from source, including tutorials.
-# ros2_kortex/ros2_robotiq_gripper/serial are only pulled in by moveit2_tutorials.repos
-# as a temporary source stand-in "until rolling binaries are available" (per its own
-# comments) for an unrelated Kinova-arm demo; nothing else in the tutorials depends on
-# them. kortex_api (part of ros2_kortex) vendors a prebuilt SDK that is hard-coded to
-# reject any architecture other than x86_64, so these are removed rather than built.
-# The moveit binary packages are removed *twice*: once before rosdep so its resolution
-# isn't confused by them, and again right after rosdep (before colcon build). This is
-# needed because rosdep install --ignore-src still resolves the unrelated binary
+# ros2_kortex/ros2_robotiq_gripper/serial are pulled in by moveit2_tutorials.repos for an
+# unrelated Kinova-arm demo (quickstart_in_rviz, the first RViz tutorial, defaults to the
+# Kinova Gen3 rather than the Panda robot). kortex_api (part of ros2_kortex) vendors a
+# prebuilt SDK via CMake FetchContent, and its CMakeLists.txt - both here and in
+# kortex_driver, which vendors the same SDK a second time for the compiled .a library -
+# has two real bugs, not just a deliberate x86_64-only restriction as its own comments
+# claim: it only ever declares an x86_64 download URL, and separately, it reads
+# CMAKE_SYSTEM_PROCESSOR *before* calling project() - which leaves that variable empty
+# on this CMake version regardless of architecture, since it's only populated once
+# project()'s implicit compiler/platform detection has run. Kinova does publish an
+# aarch64 build of the same SDK version at the equivalent URL (verified reachable and
+# correctly structured), so both files are rewritten below - reordering project() first
+# and adding the aarch64 case - rather than removing the three repos as this block used
+# to do. The moveit binary packages are removed *twice*: once before rosdep so its
+# resolution isn't confused by them, and again right after rosdep (before colcon build).
+# This is needed because rosdep install --ignore-src can resolve the unrelated binary
 # package ros-$ROS_DISTRO-kinova-gen3-7dof-robotiq-2f-85-moveit-config (a rosdep key
-# from the same Kinova demo, but not part of the ros2_kortex/ros2_robotiq_gripper
-# source repos removed above), and apt pulls the entire moveit binary stack back in as
-# its dependencies. Left in place, those binary headers (e.g. moveit_setup_framework's
+# from the same Kinova demo) and pull the entire moveit binary stack back in as its
+# dependency. Left in place, those binary headers (e.g. moveit_setup_framework's
 # templates.hpp) shadow the freshly-built source headers and cause a spurious
 # "'variables' was not declared" compile error in moveit_setup_app_plugins - regardless
 # of which moveit2 commit is checked out, so pinning moveit2 to a fixed SHA does not
 # help; the second apt remove is the actual fix. On lyrical that Kinova rosdep key isn't
-# published at all yet, so rosdep is also told to skip it outright rather than fail the build;
-# the double apt remove is left in place regardless, since it's still the real fix if apt ever
-# does pull the moveit binaries back in for some other reason.
+# published as a binary at all yet, so rosdep resolves it from the source package built
+# below instead and the previous --skip-keys for it is no longer needed; the double apt
+# remove is left in place regardless, since it's still the real fix if apt ever does pull
+# the moveit binaries back in for some other reason.
 #
 # moveit2_tutorials.repos vcs-imports moveit2, moveit_msgs, moveit_resources,
 # moveit_task_constructor, moveit_visual_tools and rviz_visual_tools, several from floating
@@ -389,11 +397,152 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     git -C moveit_visual_tools checkout e5681a71c63c8a5610da7ca7964ce2fab751ea6e && \
     git -C moveit2 checkout 797bdeff95c75158bc3b969330456d131dcf27c1 && \
     git -C moveit_resources checkout c55b102711fc0aebe80c6952d2ce97c38110abba && \
-    git -C moveit_msgs checkout 15daf790c8008665f1e577755562f14b43bbd410 && \
-    rm -rf ros2_kortex ros2_robotiq_gripper serial && \
+    git -C moveit_msgs checkout 15daf790c8008665f1e577755562f14b43bbd410
+
+# kortex_api's and kortex_driver's CMakeLists.txt each vendor the same Kinova SDK via CMake
+# FetchContent, and each has the same two real bugs: they only ever declare an x86_64
+# download URL, and separately, they read CMAKE_SYSTEM_PROCESSOR *before* calling project() -
+# which leaves that variable empty regardless of architecture on this CMake version, since
+# it's only populated once project()'s implicit compiler/platform detection has run. Kinova
+# does publish an aarch64 build of the same SDK version at the equivalent URL (verified
+# reachable and correctly structured), so both files are rewritten wholesale here - reordering
+# project() first and adding the aarch64 case - rather than patching around the bugs in place.
+# Each RUN below has to be its own layer/heredoc rather than chained with the surrounding
+# steps via `&&`: BuildKit's Dockerfile-level heredoc parsing (see the syntax pragma at the
+# top of this file) only recognizes a heredoc that is the entire body of its RUN instruction,
+# not one embedded partway through a longer `&&`-chained command list.
+RUN cat > /home/${USERNAME}/ws_moveit/src/ros2_kortex/kortex_api/CMakeLists.txt <<'EOF'
+cmake_minimum_required(VERSION 3.14)
+project(kortex_api)
+include(FetchContent)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  set(API_URL https://artifactory.kinovaapps.com/artifactory/generic-public/kortex/API/2.8.0/linux_x86-64_gcc_5.4.zip)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+  set(API_URL https://artifactory.kinovaapps.com/artifactory/generic-public/kortex/API/2.8.0/linux_aarch64_gcc_7.4.zip)
+else()
+  set(API_URL "")
+  message(FATAL_ERROR "Unsupported System: currently support is for Linux x86_64 or aarch64. Detected ${CMAKE_SYSTEM_NAME} and ${CMAKE_SYSTEM_PROCESSOR}")
+endif()
+FetchContent_Declare(kinova_binary_api URL ${API_URL})
+FetchContent_MakeAvailable(kinova_binary_api)
+find_package(ament_cmake REQUIRED)
+ament_export_include_directories(include/kortex_api)
+install(DIRECTORY ${kinova_binary_api_SOURCE_DIR}/include/client/ DESTINATION include/kortex_api)
+install(DIRECTORY ${kinova_binary_api_SOURCE_DIR}/include/common/ DESTINATION include/kortex_api)
+install(DIRECTORY ${kinova_binary_api_SOURCE_DIR}/include/messages/ DESTINATION include/kortex_api)
+install(DIRECTORY ${kinova_binary_api_SOURCE_DIR}/include/client_stubs/ DESTINATION include/kortex_api)
+install(DIRECTORY ${kinova_binary_api_SOURCE_DIR}/include/google/protobuf DESTINATION include/kortex_api/google)
+ament_package()
+EOF
+
+RUN cat > /home/${USERNAME}/ws_moveit/src/ros2_kortex/kortex_driver/CMakeLists.txt <<'EOF'
+cmake_minimum_required(VERSION 3.14)
+project(kortex_driver)
+include(FetchContent)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  set(API_URL https://artifactory.kinovaapps.com/artifactory/generic-public/kortex/API/2.8.0/linux_x86-64_gcc_5.4.zip)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+  set(API_URL https://artifactory.kinovaapps.com/artifactory/generic-public/kortex/API/2.8.0/linux_aarch64_gcc_7.4.zip)
+else()
+  set(API_URL "")
+  message(FATAL_ERROR "Unsupported System: currently support is for Linux x86_64 or aarch64. Detected ${CMAKE_SYSTEM_NAME} and ${CMAKE_SYSTEM_PROCESSOR}")
+endif()
+FetchContent_Declare(kinova_binary_api URL ${API_URL})
+FetchContent_MakeAvailable(kinova_binary_api)
+
+# Default to C++14
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 14)
+endif()
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra)
+endif()
+
+# this is needed by the kortex_api to tell it we are compiling for linux
+add_definitions(-D_OS_UNIX=1)
+
+# find dependencies
+find_package(ament_cmake REQUIRED)
+find_package(hardware_interface REQUIRED)
+find_package(pluginlib REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(kortex_api REQUIRED)
+
+# CMake does not allow IMPORTED libraries to be installed
+# The package kortex_api will download and setup the include directories
+add_library(KortexApiCpp STATIC IMPORTED)
+set_target_properties(KortexApiCpp PROPERTIES
+  IMPORTED_LOCATION ${kinova_binary_api_SOURCE_DIR}/lib/release/libKortexApiCpp.a
+  INTERFACE_LINK_LIBRARIES KortexApiCpp
+)
+target_link_libraries(KortexApiCpp INTERFACE pthread)
+add_dependencies(KortexApiCpp kortex_api)
+
+## COMPILE
+add_library(
+  ${PROJECT_NAME}
+  SHARED
+  src/hardware_interface.cpp
+  src/kortex_math_util.cpp
+)
+target_link_libraries(${PROJECT_NAME} KortexApiCpp)
+target_include_directories(
+  ${PROJECT_NAME}
+  PRIVATE
+  include
+)
+# ament_target_dependencies() was removed in Rolling; link the modern
+# namespaced CMake targets directly instead.
+target_link_libraries(
+  ${PROJECT_NAME}
+  hardware_interface::hardware_interface
+  pluginlib::pluginlib
+  rclcpp::rclcpp
+)
+# kortex_api is a header-only ament package (no exported CMake target), so its
+# headers are added as SYSTEM includes the way "SYSTEM kortex_api" used to.
+target_include_directories(
+  ${PROJECT_NAME}
+  SYSTEM PUBLIC
+  ${kortex_api_INCLUDE_DIRS}
+)
+
+pluginlib_export_plugin_description_file(hardware_interface hardware_interface_plugin.xml)
+
+# INSTALL
+install(
+  TARGETS ${PROJECT_NAME}
+  DESTINATION lib
+)
+install(
+  DIRECTORY include/
+  DESTINATION include
+)
+
+if(BUILD_TESTING)
+endif()
+
+## EXPORTS
+ament_export_include_directories(
+  include
+)
+ament_export_libraries(
+  ${PROJECT_NAME}
+)
+ament_export_dependencies(
+  hardware_interface
+  kortex_api
+  pluginlib
+  rclcpp
+)
+ament_package()
+EOF
+
+RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
+    cd /home/${USERNAME}/ws_moveit/src && \
     sudo apt remove ros-$ROS_DISTRO-moveit* -y && \
-    sudo apt update && rosdep install -r --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y \
-        --skip-keys=kinova_gen3_7dof_robotiq_2f_85_moveit_config && \
+    sudo apt update && rosdep install -r --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y && \
     sudo apt remove ros-$ROS_DISTRO-moveit* -y && \
     cd /home/${USERNAME}/ws_moveit/ && \
     colcon build --mixin release && \
