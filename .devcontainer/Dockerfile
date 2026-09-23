@@ -11,22 +11,23 @@ ARG TARGETARCH
 # /bin/sh (dash); switch the build shell to bash for the rest of the Dockerfile.
 SHELL ["/bin/bash", "-c"]
 
-# Run everything as root instead of creating a non-root user. This image is mainly used
-# rootless under Podman, where root inside the container is already remapped to the
-# invoking host user by default - a separate non-root user only adds a second UID that
-# then needs its own reconciliation with the host for bind-mounted files (e.g.
-# .Xauthority) and device nodes (e.g. /dev/dri). Doing that reconciliation through the
-# VS Code Dev Containers CLI turned out to be unreliable: Podman's --userns=keep-id
-# suboption syntax isn't accepted by its Docker-compatible CLI shim, and even the plain
-# form conflicts with named volumes created under the default mapping. USERNAME is kept
-# purely as the home directory name, so the rest of this Dockerfile doesn't need to change.
+# Add ubuntu user with same UID and GID as your host system, if it doesn't already exist
+# Since Ubuntu 24.04, a non-root user is created by default with the name vscode and UID=1000
 ARG USERNAME=ubuntu
-ENV HOME=/home/${USERNAME}
+ARG USER_UID=1000
+ARG USER_GID=$USER_UID
+RUN if ! id -u $USER_UID >/dev/null 2>&1; then \
+        groupadd --gid $USER_GID $USERNAME && \
+        useradd -s /bin/bash --uid $USER_UID --gid $USER_GID -m $USERNAME; \
+    fi
+# Add sudo support for the non-root user
+RUN apt-get update && \
+    apt-get install -y sudo && \
+    echo "$USERNAME ALL=(root) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME && \
+    chmod 0440 /etc/sudoers.d/$USERNAME
 
-# Install alsa-utils so we can setup null plugin. apt update is needed here since removing
-# the old non-root-user/sudo setup also removed the apt-get update that used to run as a
-# side effect of installing the sudo package before this step.
-RUN apt update && apt install -y alsa-utils
+# Install alsa-utils so we can setup null plugin
+RUN apt install -y alsa-utils
 RUN echo 'pcm.!default { type null }' >> /etc/asound.conf
 
 # Update all packages
@@ -34,20 +35,6 @@ RUN apt update && apt upgrade -y
 
 # Install Git and other utilities
 RUN apt install -y git psmisc wget acl software-properties-common lxterminal
-
-# Since the container runs as root, git refuses to touch the bind-mounted workspace
-# unless its ownership is explicitly trusted: under a real rootful Docker daemon (Docker
-# Desktop on Windows/WSL2 and macOS - not rootless Podman, where root is already remapped
-# to the host user) the mounted repo is owned by the host user rather than root, and git
-# treats that mismatch as "dubious ownership" and refuses every command.
-RUN git config --system --add safe.directory '*'
-
-# rosdep's cache lives under $HOME/.ros/rosdep, and the base image already ships one
-# pre-populated under /root (its own build ran as root with the default HOME) - but since
-# HOME is now /home/${USERNAME} instead, every rosdep install below would otherwise hit
-# "your rosdep installation has not been initialized yet" the first time it's used (in the
-# tb3_ws build just below), so the cache needs rebuilding under the new HOME first.
-RUN rosdep update
 
 # Install the ROS desktop packages (rviz2, demos, perception, ...) that used to
 # come from the osrf/ros:lyrical-desktop-full base image. We deliberately install
@@ -234,6 +221,7 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
         -DCMAKE_CXX_FLAGS=-include\ /usr/local/include/legacy_thread_annotations_compat.h \
         --parallel-workers $(($(nproc) / 2)) && \
     rm -rf build/ log/ src/*/.git && \
+    chown -R ${USER_UID}:${USER_GID} /home/${USERNAME}/tb3_ws && \
     echo "source /home/${USERNAME}/tb3_ws/install/setup.bash" >> /home/${USERNAME}/.bashrc
 
 # Install the Gazebo Harmonic/Turtlebot3 simulation integration from apt. Unlike Humble
@@ -264,11 +252,20 @@ RUN apt update && apt install -y clinfo && \
         apt install -y intel-opencl-icd; \
     fi
 
+# Switch from root to user
+USER $USERNAME
+
 # Fix fluxbox environment
 RUN mkdir -p /home/$USERNAME/.fluxbox/styles
 COPY fluxbox/init /home/$USERNAME/.fluxbox/init
 COPY fluxbox/menu /home/$USERNAME/.fluxbox/menu
 COPY fluxbox/qnx-photon-mod /home/$USERNAME/.fluxbox/styles/qnx-photon-mod
+
+# Add user to video group to allow access to webcam
+RUN sudo usermod --append --groups video $USERNAME
+
+# Rosdep update
+RUN rosdep update
 
 # Ignore warning for colcon builds
 RUN echo 'export PYTHONWARNINGS=ignore:::setuptools.command.install,ignore:::setuptools.command.easy_install,ignore:::pkg_resources' >> ~/.bashrc
@@ -296,7 +293,7 @@ RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 # externally-managed (PEP 668) and refuses a plain `pip install`, so these go into a venv
 # instead - built with --system-site-packages so ROS's own python packages (e.g. rclpy) stay
 # visible, and activated from ~/.bashrc so interactive shells get both automatically.
-RUN apt install -y python3-venv
+RUN sudo apt install -y python3-venv
 RUN python3 -m venv --system-site-packages /home/${USERNAME}/.venv
 RUN /home/${USERNAME}/.venv/bin/pip install gdown pydantic angles transitions python-statemachine
 RUN echo "source /home/${USERNAME}/.venv/bin/activate" >> ~/.bashrc
@@ -337,18 +334,30 @@ SHELL ["/bin/bash", "-c"]
 # published at all yet, so rosdep is also told to skip it outright rather than fail the build;
 # the double apt remove is left in place regardless, since it's still the real fix if apt ever
 # does pull the moveit binaries back in for some other reason.
+#
+# moveit2_tutorials and moveit_visual_tools (the latter pulled in by the former's .repos
+# file from its own floating `ros2` branch, so pinning moveit2_tutorials alone doesn't
+# cover it) are both pinned to whatever their respective branch heads were as of the last
+# known-good build of this Dockerfile (2026-09-03) - a later moveit_visual_tools revision
+# started failing to link against this base image's current Boost.Filesystem
+# (undefined reference to boost::filesystem::detail::status/create_directories), which
+# looks like a Boost ABI mismatch. If that turns out to be caused by the Ubuntu apt
+# repo's Boost package version moving on rather than by moveit_visual_tools' own source,
+# this pin alone won't be enough and the actual Boost version will need investigating.
 RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
     mkdir -p /home/${USERNAME}/ws_moveit/src && \
     cd /home/${USERNAME}/ws_moveit/src && \
     colcon --log-base /dev/null mixin add default https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml && \
     colcon --log-base /dev/null mixin update default && \
     git clone -b main https://github.com/moveit/moveit2_tutorials && \
+    git -C moveit2_tutorials checkout 67b6bd4bd1e133de4130b0da3e1893643d5be1bf && \
     vcs import --recursive < moveit2_tutorials/moveit2_tutorials.repos && \
+    git -C moveit_visual_tools checkout e5681a71c63c8a5610da7ca7964ce2fab751ea6e && \
     rm -rf ros2_kortex ros2_robotiq_gripper serial && \
-    apt remove ros-$ROS_DISTRO-moveit* -y && \
-    apt update && rosdep install -r --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y \
+    sudo apt remove ros-$ROS_DISTRO-moveit* -y && \
+    sudo apt update && rosdep install -r --from-paths . --ignore-src --rosdistro $ROS_DISTRO -y \
         --skip-keys=kinova_gen3_7dof_robotiq_2f_85_moveit_config && \
-    apt remove ros-$ROS_DISTRO-moveit* -y && \
+    sudo apt remove ros-$ROS_DISTRO-moveit* -y && \
     cd /home/${USERNAME}/ws_moveit/ && \
     colcon build --mixin release && \
     rm -rf build/ log/ src/ && \
@@ -360,12 +369,12 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash && \
 RUN if [ "$TARGETARCH" = "arm64" ]; then ARGOS3_ARCH=aarch64; else ARGOS3_ARCH=x86_64; fi && \
     curl -fsSL -o /home/${USERNAME}/argos3_simulator-3.0.0-${ARGOS3_ARCH}-beta59.deb \
         "https://github.com/UoY-RoboStar/argos3/releases/download/3.0.0-beta59/argos3_simulator-3.0.0-${ARGOS3_ARCH}-beta59.deb" && \
-    apt update && apt install -y /home/${USERNAME}/argos3_simulator-3.0.0-${ARGOS3_ARCH}-beta59.deb && \
+    sudo apt update && sudo apt install -y /home/${USERNAME}/argos3_simulator-3.0.0-${ARGOS3_ARCH}-beta59.deb && \
     rm /home/${USERNAME}/argos3_simulator-3.0.0-${ARGOS3_ARCH}-beta59.deb && \
     # The aarch64 .deb installs under /usr/local instead of /usr (unlike the x86_64 one).
     # argos3-ros2-bridge's plugins/bridge/CMakeLists.txt hardcodes /usr/lib/argos3/*.so as
     # link targets, so symlink it into place if the package installed elsewhere.
-    if [ ! -e /usr/lib/argos3 ] && [ -d /usr/local/lib/argos3 ]; then ln -s /usr/local/lib/argos3 /usr/lib/argos3; fi
+    if [ ! -e /usr/lib/argos3 ] && [ -d /usr/local/lib/argos3 ]; then sudo ln -s /usr/local/lib/argos3 /usr/lib/argos3; fi
 
 # Install ARGoS3 examples and build them
 RUN git clone https://github.com/ilpincy/argos3-examples.git /home/${USERNAME}/argos3-examples && \
@@ -376,7 +385,7 @@ RUN git clone https://github.com/ilpincy/argos3-examples.git /home/${USERNAME}/a
 
 # Install GSL libraries. Package name follows the GSL SONAME, which this base image's newer
 # Ubuntu ("resolute") has bumped to 28 (it was libgsl27 on jazzy's Ubuntu 24.04 base).
-RUN apt update && apt install -y libgsl28 libgsl-dev
+RUN sudo apt update && sudo apt install -y libgsl28 libgsl-dev
 
 # Install ARGos3 ROS2 bridge (depends on ARGoS3 above), from the `lyrical` branch - main's
 # CMakeLists.txt predates this base image's CMake, which has dropped support for
@@ -406,8 +415,11 @@ argos3() {
 }
 EOF
 
+ARG USERNAME=ubuntu
+USER $USERNAME
+
 # Install pangolin dependencies and other required packages
-RUN apt update && apt install -y libglew-dev ffmpeg unzip
+RUN sudo apt update && sudo apt install -y libglew-dev ffmpeg unzip
 
 # Pangolin. Pinned to an old commit that already needs the two source patches below, so - like
 # cartographer and argos3_ros2_bridge above - -DCMAKE_POLICY_VERSION_MINIMUM=3.5 is added here
@@ -457,14 +469,14 @@ RUN cd /home/${USERNAME}/ && \
     -DBUILD_PYPANGOLIN_MODULE=OFF \
     .. && \
     make -j$(($(nproc) / 2)) && \
-    make install && \
+    sudo make install && \
     cd / && rm -rf Pangolin
 
 # Iridescence. src/guik/viewer/info_window.cpp uses Boost.Process's classic API
 # (boost::process::ipstream/child/std_out), which Boost 1.87+ moved behind an explicit
 # boost::process::v1:: namespace as part of the v2 redesign (no macro opt-in exists to keep the
 # unqualified names) - patched to include the v1 header and qualify every boost::process:: use.
-RUN apt update && apt install -y libglm-dev libglfw3-dev libpng-dev libjpeg-dev libeigen3-dev libboost-filesystem-dev libboost-program-options-dev && \
+RUN sudo apt update && sudo apt install -y libglm-dev libglfw3-dev libpng-dev libjpeg-dev libeigen3-dev libboost-filesystem-dev libboost-program-options-dev && \
     cd /home/${USERNAME}/ && \
     git clone https://github.com/koide3/iridescence.git && \
     cd iridescence && \
@@ -477,7 +489,7 @@ RUN apt update && apt install -y libglm-dev libglfw3-dev libpng-dev libjpeg-dev 
     mkdir -p build && cd build && \
     cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .. && \
     make -j"$(($(nproc)/2))" && \
-    make install && \
+    sudo make install && \
     rm -rf /home/${USERNAME}/iridescence
 
 # Stella VSLAM
@@ -492,7 +504,7 @@ RUN mkdir -p /home/${USERNAME}/lib && \
     source /opt/ros/${ROS_DISTRO}/setup.bash && \
     cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_POLICY_VERSION_MINIMUM=3.5 .. && \
     make -j"$(($(nproc)/2))" && \
-    make install && \
+    sudo make install && \
     rm -rf /home/${USERNAME}/lib/stella_vslam
 
 # Stella vslam ROS, from the UoY-RoboStar fork's `lyrical` branch - upstream's CMakeLists.txt
@@ -515,4 +527,6 @@ RUN mkdir -p /home/${USERNAME}/stella/vocab && \
     https://raw.githubusercontent.com/stella-cv/FBoW_orb_vocab/main/orb_vocab.fbow    
 
 # Update ldconfig
+USER root
 RUN echo "/usr/local/lib" > /etc/ld.so.conf.d/stella_vslam.conf && ldconfig
+USER $USERNAME
